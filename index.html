@@ -73,17 +73,54 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
 .card2 .big{font-size:34px}
 #adminContent h2{margin:22px 0 8px;font-size:15px;text-transform:uppercase;color:var(--muted)}
 #roomAdminBtn{background:var(--warn);color:#1e1f22;font-weight:700}
-.modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;padding:16px;z-index:8}
-.modalBox{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:24px;width:100%;max-width:820px;max-height:90vh;overflow:auto}
-.modalX{position:absolute;top:12px;right:12px;padding:6px 10px}
+#home{min-height:0}
+.side{overflow:auto}
+.main.flush{padding:0;overflow:hidden}
+.roomwrap{height:100%}
+.roomwrap #room{height:100%}
+.badge{margin-left:auto;background:var(--danger);color:#fff;font-size:11px;border-radius:99px;padding:1px 7px;font-style:normal}
+.nav .dot{margin-left:auto}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#80848e;flex:none}
+.dot.on{background:var(--ok)}
+.dot.live{background:var(--danger);box-shadow:0 0 0 3px #da373c44}
+.sideHead{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);padding:14px 8px 4px}
+.flist{list-style:none;margin:0;padding:0}
+.flist li{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:pointer}
+.flist li:hover,.flist li.on{background:var(--panel2)}
+.flist .avw{position:relative;flex:none}
+.flist .avw .dot{position:absolute;right:-2px;bottom:-2px;border:3px solid var(--panel);width:14px;height:14px}
+.flist .fi{flex:1;min-width:0}
+.flist .fi b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flist .fi small{display:block;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flist .fi small.live{color:#ff8a8d;font-weight:700}
+.flist.big li{background:var(--panel);margin-bottom:6px;cursor:default}
+.flist.big li.click{cursor:pointer}
+.flist.big li button{padding:6px 10px;font-size:13px}
+.flist .empty{cursor:default}
+.sec{margin:26px 0 10px;font-size:13px;text-transform:uppercase;color:var(--muted)}
+.code.big2{font-size:20px;flex:1;text-align:center;padding:10px}
+.fcard{display:flex;align-items:center;gap:18px;background:var(--panel);padding:24px;border-radius:14px}
+.av.huge{width:80px;height:80px;font-size:34px}
+.fstatus{display:flex;align-items:center;gap:8px;color:var(--muted)}
+.factions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.factions button{padding:12px 18px}
+#invites{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:10px;z-index:10;max-width:calc(100vw - 32px)}
+.inv{background:var(--panel2);border:1px solid var(--accent);border-radius:12px;padding:14px;width:320px;max-width:100%;box-shadow:0 10px 40px #000a;animation:pop .25s ease-out}
+.inv b{display:block;margin-bottom:4px}
+.inv p{margin:0 0 10px;color:var(--muted);font-size:13px}
+.inv .row button{flex:1}
+@keyframes pop{from{transform:translateY(20px);opacity:0}}
 @media (max-width:760px){
   #home{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   .side{flex-direction:row;flex-wrap:wrap;align-items:center;padding:10px}
   .logo.sm{padding:0 8px 0 4px;font-size:18px}
   .nav{width:auto}
   .nav span{display:none}
-  .side .me{display:none}
+  .side .me,.sideHead,#sideFriends{display:none}
   .side .spacer{flex:1}
+  .nav .badge,.nav .dot{margin-left:2px}
+  .fcard{padding:16px}
+  .av.huge{width:60px;height:60px;font-size:26px}
   .main{padding:20px 16px}
 }
 .tbl{width:100%;border-collapse:collapse;font-size:14px}
@@ -135,7 +172,7 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
 .reacts button:hover{background:var(--panel2)}
 #vol{width:110px;padding:0}
 #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:10px;box-shadow:0 8px 30px #0008;max-width:90vw;z-index:9;transition:opacity .3s}
-@media (max-width:820px){
+@media (max-width:1000px){
   #room{grid-template-columns:1fr;grid-template-rows:auto minmax(220px,45vh) auto 1fr}
   #room aside{grid-row:4;border-left:0}
   footer{grid-row:3}
@@ -180,7 +217,11 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
   <nav class="side">
     <div class="logo sm">Cine<span>Sala</span></div>
     <button class="nav on" data-view="homeView" type="button">🏠 <span>Início</span></button>
+    <button class="nav" data-view="friendsView" type="button">👥 <span>Amigos</span><b class="badge hidden" id="reqBadge">0</b></button>
+    <button class="nav hidden" id="roomNav" data-view="roomView" type="button">📡 <span>Sala atual</span><i class="dot live" id="roomNavDot"></i></button>
     <button class="nav hidden" id="adminBtn" data-view="adminView" type="button">🛡️ <span>Painel de admin</span></button>
+    <div class="sideHead">Amigos</div>
+    <ul id="sideFriends" class="flist"></ul>
     <span class="spacer"></span>
     <div class="me"><span class="av" id="meAv">?</span><div><b id="meName">—</b><small id="meEmail"></small></div></div>
     <button id="logoutBtn" type="button" class="nav">↩ <span>Sair da conta</span></button>
@@ -211,6 +252,46 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
       <button id="copyUidBtn" class="link hidden" type="button">Copiar meu ID de usuário (para configurar o admin)</button>
     </div>
 
+    <div id="friendsView" class="view hidden">
+      <h1 class="hello">👥 Amigos</h1>
+      <p class="sub">Adicione amigos pelo código e transmita direto para eles, sem precisar passar código de sala.</p>
+      <div class="cards">
+        <div class="card2">
+          <h3>Seu código de amigo</h3>
+          <p>Mande este código para quem quiser te adicionar.</p>
+          <div class="row"><span class="code big2" id="myCode">…</span><button id="copyCodeBtn" type="button">Copiar</button></div>
+        </div>
+        <div class="card2">
+          <h3>Adicionar amigo</h3>
+          <p>Digite o código de amigo da outra pessoa.</p>
+          <form class="row" id="addFriendForm" autocomplete="off">
+            <input id="addFriendIn" maxlength="9" placeholder="XXXX-XXXX" style="text-transform:uppercase;letter-spacing:2px">
+            <button class="primary">Enviar pedido</button>
+          </form>
+        </div>
+      </div>
+      <div class="err" id="friendsErr"></div>
+      <div id="reqInBox" class="hidden"><h2 class="sec">Pedidos recebidos</h2><ul id="reqIn" class="flist big"></ul></div>
+      <div id="reqOutBox" class="hidden"><h2 class="sec">Pedidos enviados</h2><ul id="reqOut" class="flist big"></ul></div>
+      <h2 class="sec">Todos os amigos</h2>
+      <ul id="allFriends" class="flist big"></ul>
+    </div>
+
+    <div id="friendView" class="view hidden">
+      <div class="fcard">
+        <span class="av huge" id="fvAv">?</span>
+        <div class="fmeta"><h1 class="hello" id="fvName">—</h1><div id="fvStatus" class="fstatus"></div></div>
+      </div>
+      <div class="factions">
+        <button id="fvWatch" class="ok hidden" type="button">▶ Assistir junto</button>
+        <button id="fvStream" class="primary" type="button">📺 Transmitir para —</button>
+        <button id="fvRemove" type="button">Remover amigo</button>
+      </div>
+      <p class="sub" id="fvHint" style="margin-top:12px"></p>
+    </div>
+
+    <div id="roomView" class="hidden roomwrap"></div>
+
     <div id="adminView" class="view hidden">
       <div id="adminContent">
         <h1 class="hello">🛡️ Painel de admin</h1>
@@ -225,16 +306,11 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
   </main>
 </section>
 
-<!-- Painel de admin por cima da sala -->
-<div id="adminModal" class="modal hidden">
-  <div class="modalBox">
-    <button id="adminModalClose" class="modalX" type="button" title="Fechar">✕</button>
-    <div id="adminSlot"></div>
-  </div>
-</div>
+<!-- Convites recebidos -->
+<div id="invites"></div>
 
-<!-- ===== ROOM ===== -->
-<section id="room" class="hidden">
+<!-- ===== ROOM (vai para dentro do app, na view "Sala atual") ===== -->
+<section id="room">
   <header>
     <span class="title">CineSala</span>
     <span class="code" id="roomCode">------</span>
@@ -324,6 +400,7 @@ const PEER_OPTS = {
 
 /* ---------- Helpers ---------- */
 const $ = id => document.getElementById(id);
+$("roomView").append($("room"));   // a sala fica dentro do app (dá pra navegar sem parar a transmissão)
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
@@ -419,15 +496,19 @@ function showLobby(u) {
   $("adminBtn").classList.toggle("hidden", !admin);
   $("roomAdminBtn").classList.toggle("hidden", !admin);
   $("copyUidBtn").classList.toggle("hidden", ADMIN_UID !== "COLE_SEU_UID");
-  if (S.role) return;                       // já está numa sala
   $("lobby").classList.add("hidden");
   $("home").classList.remove("hidden");
-  showView("homeView");
+  if (!S.role) showView("homeView");
   if (admin) startAdminFeed(); else stopAdminFeed();
+  startSocial();
 }
+const VIEWS = ["homeView", "friendsView", "friendView", "roomView", "adminView"];
 function showView(id) {
-  for (const v of ["homeView", "adminView"]) $(v).classList.toggle("hidden", v !== id);
+  if (id === "roomView" && !S.role) id = "homeView";
+  for (const v of VIEWS) $(v).classList.toggle("hidden", v !== id);
+  document.querySelector(".main").classList.toggle("flush", id === "roomView");
   document.querySelectorAll(".side .nav[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === id));
+  if (id !== "friendView") { F.selected = null; renderSideFriends(); }
 }
 document.querySelectorAll(".side .nav[data-view]").forEach(b => b.onclick = () => showView(b.dataset.view));
 function isAdmin(uid) { return !!uid && uid === ADMIN_UID; }
@@ -483,7 +564,12 @@ if (!AUTH_READY || !window.firebase) {
     try { await auth.sendPasswordResetEmail(email); authError("Se existir uma conta com esse e-mail, enviamos um link para criar uma nova senha.", true); }
     catch (err) { authError(authMsg(err)); }
   };
-  $("logoutBtn").onclick = () => auth.signOut();
+  $("logoutBtn").onclick = async () => {
+    if (S.role && !confirm("Sair da conta vai encerrar a sala atual. Continuar?")) return;
+    await goOffline();
+    await auth.signOut();
+    location.href = location.href.split("#")[0];
+  };
 }
 
 /* ---------- Painel de admin ---------- */
@@ -534,21 +620,8 @@ function startAdminFeed() {
 function stopAdminFeed() {
   unsubKicks?.(); unsubBans?.(); unsubKicks = unsubBans = null;
 }
-/* Dentro da sala: abre o mesmo painel por cima do vídeo */
-function openAdminModal() {
-  if (!isAdmin(S.uid)) return;
-  startAdminFeed();
-  $("adminSlot").append($("adminContent"));
-  $("adminModal").classList.remove("hidden");
-}
-function closeAdminModal() {
-  $("adminView").append($("adminContent"));
-  $("adminModal").classList.add("hidden");
-}
-$("roomAdminBtn").onclick = openAdminModal;
-$("adminModalClose").onclick = closeAdminModal;
-$("adminModal").onclick = e => { if (e.target === $("adminModal")) closeAdminModal(); };
-document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("adminModal").classList.contains("hidden")) closeAdminModal(); });
+/* Dentro da sala: o botão Admin leva ao painel (a transmissão continua rodando) */
+$("roomAdminBtn").onclick = () => showView("adminView");
 
 /* Banido pelo admin? (cada pessoa só consegue consultar um ID específico, nunca a lista) */
 async function isGloballyBanned(uid) {
@@ -570,11 +643,295 @@ async function verifyToken(idToken) {
   } catch { return null; }
 }
 
+/* =====================================================
+   AMIGOS, STATUS (online / ao vivo) E CONVITES
+   Tudo no Firestore — veja firestore.rules
+   ===================================================== */
+const F = {
+  started: false,
+  profile: null,
+  pairs: new Map(),        // id do par -> { uids, from, names, status }
+  pres: new Map(),         // uid do amigo -> documento de status
+  presUnsub: new Map(),
+  selected: null,
+  invCards: new Map(),
+  hb: null,
+};
+const ONLINE_MS = 150_000;
+const INVITE_TTL = 10 * 60_000;
+const ts = () => firebase.firestore.FieldValue.serverTimestamp();
+function pairIdOf(a, b) { return a < b ? `${a}_${b}` : `${b}_${a}`; }
+function otherOf(p) { return p.uids[0] === S.uid ? p.uids[1] : p.uids[0]; }
+function friendCode() {
+  const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
+  for (const b of crypto.getRandomValues(new Uint8Array(8))) s += abc[b % abc.length];
+  return s;
+}
+function fmtCode(c) { return c ? c.slice(0, 4) + "-" + c.slice(4) : "…"; }
+function friendsErr(msg) { $("friendsErr").textContent = msg; if (msg && $("friendsView").classList.contains("hidden")) toast(msg, 5000); }
+function permMsg(e) { return e?.code === "permission-denied" ? "Sem permissão no Firestore — publique as regras novas (firestore.rules)." : (e?.message || String(e)); }
+
+async function startSocial() {
+  if (F.started || !db) return;
+  F.started = true;
+  try { await ensureProfile(); } catch (e) { console.warn(e); friendsErr("Não consegui criar seu perfil: " + permMsg(e)); }
+  db.collection("friends").where("uids", "array-contains", S.uid).onSnapshot(snap => {
+    F.pairs = new Map(snap.docs.map(d => [d.id, d.data()]));
+    syncPresenceSubs(); renderFriends();
+  }, e => friendsErr("Lista de amigos: " + permMsg(e)));
+  db.collection("invites").where("to", "==", S.uid).onSnapshot(snap => {
+    snap.docChanges().forEach(ch => ch.type === "removed" ? dropInviteCard(ch.doc.id) : showInvite(ch.doc));
+  }, e => console.warn("convites", e));
+  setPresence();
+  F.hb = setInterval(setPresence, 60_000);
+  setInterval(() => { renderFriends(); }, 30_000);   // atualiza "online/offline" com o tempo
+}
+
+async function ensureProfile() {
+  const ref = db.collection("profiles").doc(S.uid);
+  let snap = await ref.get();
+  if (!snap.exists) {
+    let code = null;
+    for (let i = 0; i < 5 && !code; i++) {
+      const c = friendCode();
+      try { await db.collection("codes").doc(c).set({ uid: S.uid }); code = c; } catch (e) { if (i === 4) throw e; }
+    }
+    await ref.set({ name: S.name, code });
+    snap = await ref.get();
+  } else if (snap.data().name !== S.name) {
+    await ref.update({ name: S.name });
+  }
+  F.profile = snap.data();
+  $("myCode").textContent = fmtCode(F.profile.code);
+}
+
+/* Seu status, visto só pelos seus amigos */
+function setPresence() {
+  if (!db || !S.uid) return Promise.resolve();
+  const inRoom = !!S.role && !S.leaving;
+  return db.collection("presence").doc(S.uid).set({
+    name: S.name, at: ts(),
+    room: inRoom ? S.code : "",
+    live: inRoom && S.role === "host" && !!S.stream,
+    watching: inRoom && S.role === "viewer",
+  }).catch(e => console.warn("status", e));
+}
+function goOffline() {
+  if (!db || !S.uid) return Promise.resolve();
+  return db.collection("presence").doc(S.uid).set({
+    name: S.name, at: firebase.firestore.Timestamp.fromMillis(0), room: "", live: false, watching: false,
+  }).catch(() => {});
+}
+
+function syncPresenceSubs() {
+  const want = new Set([...F.pairs.values()].filter(p => p.status === "accepted").map(otherOf));
+  for (const [uid, un] of F.presUnsub) if (!want.has(uid)) { un(); F.presUnsub.delete(uid); F.pres.delete(uid); }
+  for (const uid of want) if (!F.presUnsub.has(uid)) {
+    F.presUnsub.set(uid, db.collection("presence").doc(uid).onSnapshot(d => {
+      if (d.exists) F.pres.set(uid, d.data()); else F.pres.delete(uid);
+      renderFriends();
+    }, () => {}));
+  }
+}
+
+function friendInfo(uid) {
+  const pair = F.pairs.get(pairIdOf(S.uid, uid));
+  const p = F.pres.get(uid);
+  const name = cleanName(p?.name || pair?.names?.[uid]);
+  const online = !!p?.at?.toMillis && Date.now() - p.at.toMillis() < ONLINE_MS;
+  let state = "off", text = "Offline";
+  if (online && p.room && p.live) { state = "live"; text = "🔴 Transmitindo agora"; }
+  else if (online && p.room && p.watching) { state = "on"; text = "Assistindo uma sala"; }
+  else if (online) { state = "on"; text = "Online"; }
+  return { uid, name, state, text, room: online ? p.room : "" };
+}
+function acceptedFriends() {
+  const order = { live: 0, on: 1, off: 2 };
+  return [...F.pairs.values()].filter(p => p.status === "accepted").map(p => friendInfo(otherOf(p)))
+    .sort((a, b) => order[a.state] - order[b.state] || a.name.localeCompare(b.name));
+}
+
+function avatarEl(name, state) {
+  const w = document.createElement("span"); w.className = "avw";
+  const av = document.createElement("span"); av.className = "av"; av.style.background = colorFor(name); av.textContent = name[0].toUpperCase();
+  w.append(av);
+  if (state) { const d = document.createElement("i"); d.className = "dot " + state; w.append(d); }
+  return w;
+}
+function friendLi(f, opts = {}) {
+  const li = document.createElement("li"); if (opts.click !== false) li.classList.add("click");
+  if (F.selected === f.uid) li.classList.add("on");
+  const fi = document.createElement("span"); fi.className = "fi";
+  const b = document.createElement("b"); b.textContent = f.name;
+  const sm = document.createElement("small"); sm.textContent = opts.sub ?? f.text; if (f.state === "live" && opts.sub == null) sm.className = "live";
+  fi.append(b, sm);
+  li.append(avatarEl(f.name, opts.sub == null ? f.state : null), fi);
+  for (const btn of opts.buttons || []) li.append(btn);
+  if (opts.click !== false) li.onclick = e => { if (!e.target.closest("button")) openFriend(f.uid); };
+  return li;
+}
+function emptyLi(text) { const li = document.createElement("li"); li.className = "empty"; li.textContent = text; return li; }
+
+function renderSideFriends() {
+  const ul = $("sideFriends"); ul.textContent = "";
+  const list = acceptedFriends();
+  if (!list.length) ul.append(emptyLi("Nenhum amigo ainda"));
+  for (const f of list) ul.append(friendLi(f));
+}
+function renderFriends() {
+  renderSideFriends();
+  const incoming = [], outgoing = [];
+  for (const [id, p] of F.pairs) if (p.status === "pending") (p.from === S.uid ? outgoing : incoming).push([id, p]);
+  $("reqBadge").textContent = incoming.length; $("reqBadge").classList.toggle("hidden", !incoming.length);
+
+  const rin = $("reqIn"); rin.textContent = ""; $("reqInBox").classList.toggle("hidden", !incoming.length);
+  for (const [id, p] of incoming) {
+    const uid = otherOf(p), nm = cleanName(p.names?.[uid]);
+    rin.append(friendLi({ uid, name: nm }, { click: false, sub: "Quer ser seu amigo", buttons: [
+      actBtn("Aceitar", "ok", () => db.collection("friends").doc(id).update({ status: "accepted", at: ts() }).catch(e => friendsErr(permMsg(e)))),
+      actBtn("Recusar", "", () => db.collection("friends").doc(id).delete().catch(e => friendsErr(permMsg(e)))),
+    ] }));
+  }
+  const rout = $("reqOut"); rout.textContent = ""; $("reqOutBox").classList.toggle("hidden", !outgoing.length);
+  for (const [id, p] of outgoing) {
+    const uid = otherOf(p), nm = cleanName(p.names?.[uid]);
+    rout.append(friendLi({ uid, name: nm }, { click: false, sub: "Aguardando resposta", buttons: [
+      actBtn("Cancelar", "", () => db.collection("friends").doc(id).delete().catch(e => friendsErr(permMsg(e)))),
+    ] }));
+  }
+  const all = $("allFriends"); all.textContent = "";
+  const list = acceptedFriends();
+  if (!list.length) all.append(emptyLi("Você ainda não tem amigos adicionados. Troque códigos de amigo com a galera!"));
+  for (const f of list) all.append(friendLi(f));
+  if (F.selected) renderFriendView();
+}
+
+/* ---- Adicionar amigo pelo código ---- */
+$("copyCodeBtn").onclick = async () => {
+  const c = fmtCode(F.profile?.code); if (!F.profile) return;
+  try { await navigator.clipboard.writeText(c); toast("Código copiado: " + c); } catch { prompt("Seu código de amigo:", c); }
+};
+$("addFriendForm").onsubmit = async e => {
+  e.preventDefault(); friendsErr("");
+  const code = $("addFriendIn").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length !== 8) return friendsErr("O código de amigo tem 8 caracteres (ex.: ABCD-1234).");
+  if (code === F.profile?.code) return friendsErr("Esse é o seu próprio código 😄");
+  try {
+    const c = await db.collection("codes").doc(code).get();
+    if (!c.exists) return friendsErr("Código não encontrado. Confira com seu amigo.");
+    const uid = c.data().uid;
+    const pid = pairIdOf(S.uid, uid);
+    const existing = F.pairs.get(pid);
+    if (existing?.status === "accepted") return friendsErr("Vocês já são amigos.");
+    if (existing?.from === S.uid) return friendsErr("Você já enviou um pedido para essa pessoa.");
+    if (existing) {   // ele já tinha te mandado pedido → aceita
+      await db.collection("friends").doc(pid).update({ status: "accepted", at: ts() });
+      $("addFriendIn").value = ""; return toast("Pedido aceito! Agora vocês são amigos.");
+    }
+    const prof = await db.collection("profiles").doc(uid).get();
+    const theirName = cleanName(prof.data()?.name);
+    await db.collection("friends").doc(pid).set({
+      uids: [S.uid, uid].sort(), from: S.uid, status: "pending", at: ts(),
+      names: { [S.uid]: S.name, [uid]: theirName },
+    });
+    $("addFriendIn").value = ""; toast(`Pedido enviado para ${theirName}!`);
+  } catch (err) { friendsErr(err?.code === "permission-denied" ? "Não foi possível enviar (talvez já exista um pedido entre vocês)." : permMsg(err)); }
+};
+
+/* ---- Tela do amigo selecionado ---- */
+function openFriend(uid) { F.selected = uid; renderFriendView(); showView("friendView"); F.selected = uid; renderSideFriends(); }
+function renderFriendView() {
+  const uid = F.selected; if (!uid) return;
+  const pair = F.pairs.get(pairIdOf(S.uid, uid));
+  if (!pair || pair.status !== "accepted") { F.selected = null; return showView("friendsView"); }
+  const f = friendInfo(uid);
+  $("fvAv").textContent = f.name[0].toUpperCase(); $("fvAv").style.background = colorFor(f.name);
+  $("fvName").textContent = f.name;
+  const st = $("fvStatus"); st.textContent = "";
+  const d = document.createElement("i"); d.className = "dot " + f.state; st.append(d, document.createTextNode(f.text));
+
+  const canWatch = !!f.room && f.state !== "off" && S.code !== f.room;
+  $("fvWatch").classList.toggle("hidden", !canWatch);
+  $("fvWatch").textContent = f.state === "live" ? `▶ Assistir ${f.name}` : "▶ Entrar na mesma sala";
+  const hosting = S.role === "host";
+  $("fvStream").textContent = hosting ? `📨 Chamar ${f.name} para minha sala` : `📺 Transmitir para ${f.name}`;
+  $("fvStream").disabled = S.role === "viewer";
+  $("fvHint").textContent =
+    S.role === "viewer" ? "Você está assistindo uma sala. Saia dela para começar a sua transmissão." :
+    f.state === "off" ? `${f.name} está offline — o convite fica esperando por 10 minutos.` :
+    hosting ? "Seu amigo vai receber um aviso na tela para entrar." :
+    "Você escolhe a tela/aba, a sala é criada e seu amigo recebe o convite na hora.";
+}
+$("fvStream").onclick = () => F.selected && streamTo(F.selected);
+$("fvWatch").onclick = () => { const f = F.selected && friendInfo(F.selected); if (f?.room) joinRoom(f.room); };
+$("fvRemove").onclick = () => {
+  const uid = F.selected; if (!uid) return;
+  if (!confirm(`Remover ${friendInfo(uid).name} dos seus amigos?`)) return;
+  db.collection("friends").doc(pairIdOf(S.uid, uid)).delete().then(() => showView("friendsView")).catch(e => toast(permMsg(e)));
+};
+
+/* Transmitir direto para um amigo (sem código) */
+async function streamTo(uid) {
+  if (S.role === "viewer") return toast("Saia da sala que você está assistindo antes de transmitir.");
+  if (S.role === "host") { await sendInvite(uid); return; }
+  if (!checkLib()) return;
+  if (!navigator.mediaDevices?.getDisplayMedia) return toast("Seu navegador não permite transmitir a tela. Use Chrome ou Edge no computador.");
+  const stream = await captureScreen();          // escolhe a tela já no clique
+  if (!stream) return;
+  if (await isGloballyBanned(S.uid)) { stream.getTracks().forEach(t => t.stop()); return toast("Sua conta foi banida pelo administrador."); }
+  startHost(S.name, 0, () => { applyStream(stream); sendInvite(uid); });
+}
+async function sendInvite(uid) {
+  const f = friendInfo(uid);
+  try {
+    await db.collection("invites").add({ from: S.uid, fromName: S.name, to: uid, room: S.code, at: ts() });
+    toast(`Convite enviado para ${f.name}! 📨`);
+  } catch (e) { toast("Não consegui enviar o convite: " + permMsg(e), 6000); }
+}
+function joinRoom(code) {
+  if (S.code === code && S.role) return showView("roomView");
+  if (S.role) return toast("Saia da sala atual antes de entrar em outra.");
+  if (!checkLib()) return;
+  startViewer(S.name, code);
+}
+
+/* Convites que chegam pra você */
+function beep() {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = 880; g.gain.setValueAtTime(.15, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .5);
+    o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + .5);
+  } catch {}
+}
+function showInvite(doc) {
+  const d = doc.data();
+  const at = d.at?.toMillis ? d.at.toMillis() : Date.now();
+  if (Date.now() - at > INVITE_TTL || typeof d.room !== "string" || d.room.length !== 6) { doc.ref.delete().catch(() => {}); return; }
+  if (F.invCards.has(doc.id)) return;
+  const name = cleanName(d.fromName);
+  const card = document.createElement("div"); card.className = "inv";
+  const b = document.createElement("b"); b.textContent = `🎬 ${name} te chamou para assistir!`;
+  const p = document.createElement("p"); p.textContent = "Entre agora para ver a transmissão ao vivo.";
+  const row = document.createElement("div"); row.className = "row";
+  row.append(
+    actBtn("▶ Assistir", "primary", () => { doc.ref.delete().catch(() => {}); dropInviteCard(doc.id); joinRoom(d.room); }),
+    actBtn("Agora não", "", () => { doc.ref.delete().catch(() => {}); dropInviteCard(doc.id); }),
+  );
+  card.append(b, p, row);
+  $("invites").append(card); F.invCards.set(doc.id, card);
+  beep();
+  setTimeout(() => dropInviteCard(doc.id), INVITE_TTL);
+}
+function dropInviteCard(id) { F.invCards.get(id)?.remove(); F.invCards.delete(id); }
+
 /* ---------- UI: lobby ---------- */
 const hashCode = location.hash.replace("#", "").toUpperCase().slice(0, 6);
 if (hashCode) { $("codeIn").value = hashCode; $("joinBtn").classList.add("primary"); }
 
-function lobbyError(msg) { $("lobbyErr").textContent = msg; }
+function lobbyError(msg) {
+  $("lobbyErr").textContent = msg;
+  if (msg && !msg.endsWith("…") && $("homeView").classList.contains("hidden")) toast(msg, 5000);
+}
 function requireName() {
   if (!auth?.currentUser) { lobbyError("Faça login primeiro."); return null; }
   return S.name;
@@ -602,9 +959,10 @@ $("joinBtn").onclick = () => {
 $("codeIn").addEventListener("keydown", e => { if (e.key === "Enter") $("joinBtn").click(); });
 
 function enterRoom() {
-  $("lobby").classList.add("hidden");
-  $("home").classList.add("hidden");
-  $("room").classList.remove("hidden");
+  $("roomNav").classList.remove("hidden");
+  $("roomNavDot").className = "dot " + (S.role === "host" ? "" : "on");
+  showView("roomView");
+  setPresence();
   $("roomCode").textContent = S.code;
   history.replaceState(null, "", "#" + S.code);
   if (S.role === "host") {
@@ -676,6 +1034,8 @@ function showReaction(e, name) {
 }
 function setLive(on) {
   const p = $("livePill"); p.textContent = on ? "● AO VIVO" : "Offline"; p.classList.toggle("live", on);
+  $("roomNavDot").className = "dot " + (on ? "live" : "on");
+  if (S.role === "host") setPresence();
 }
 
 $("chatForm").onsubmit = e => {
@@ -698,17 +1058,21 @@ $("reacts").onclick = e => {
 /* =====================================================
    HOST
    ===================================================== */
-function startHost(name, attempt = 0) {
+function startHost(name, attempt = 0, onOpen = null) {
   S.role = "host"; S.name = name; S.code = newCode();
   $("createBtn").disabled = true; lobbyError("Criando sala…");
   const peer = new Peer(PREFIX + S.code, PEER_OPTS);
   S.peer = peer;
-  peer.on("open", () => { lobbyError(""); enterRoom(); hostSyncUsers(); sysMsg("Sala criada. Copie o link e mande para seus amigos."); });
+  peer.on("open", () => {
+    lobbyError(""); enterRoom(); hostSyncUsers();
+    sysMsg("Sala criada. Chame amigos pela lista de amigos ou copie o link.");
+    onOpen?.();
+  });
   peer.on("error", err => {
-    if (err.type === "unavailable-id" && attempt < 3) { peer.destroy(); return startHost(name, attempt + 1); }
+    if (err.type === "unavailable-id" && attempt < 3) { peer.destroy(); return startHost(name, attempt + 1, onOpen); }
     if (err.type === "peer-unavailable") return; // um espectador saiu no meio da chamada
     console.warn(err);
-    if (!S.peer?.open) { $("createBtn").disabled = false; lobbyError("Falha ao conectar no servidor: " + err.type); }
+    if (!S.peer?.open) { S.role = null; S.code = ""; $("createBtn").disabled = false; lobbyError("Falha ao conectar no servidor: " + err.type); }
     else toast("Erro de conexão: " + err.type);
   });
   peer.on("disconnected", () => { if (!S.leaving) { toast("Reconectando ao servidor…"); setTimeout(() => !peer.destroyed && peer.reconnect(), 1500); } });
@@ -814,10 +1178,14 @@ function hostCall(id) {
 }
 
 async function startShare() {
+  const stream = await captureScreen();
+  if (stream) applyStream(stream);
+}
+/* Abre a janela do navegador para escolher tela/aba (precisa vir de um clique) */
+async function captureScreen() {
   const q = QUALITY[$("quality").value];
-  let stream;
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({
+    return await navigator.mediaDevices.getDisplayMedia({
       video: { width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { ideal: q.fps, max: q.fps } },
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
       systemAudio: "include",
@@ -826,8 +1194,10 @@ async function startShare() {
     });
   } catch (e) {
     if (e.name !== "NotAllowedError") toast("Não foi possível capturar a tela: " + e.message);
-    return;
+    return null;
   }
+}
+function applyStream(stream) {
   const vt = stream.getVideoTracks()[0];
   if (vt && "contentHint" in vt) vt.contentHint = "motion";
   if (!stream.getAudioTracks().length) {
@@ -867,15 +1237,21 @@ function startViewer(name, code) {
   const peer = new Peer(PEER_OPTS);
   S.peer = peer;
   let entered = false;
+  function failJoin(msg) {
+    if (entered) { toast(msg, 5000); return; }
+    S.role = null; S.code = ""; S.hostConn = null;
+    $("joinBtn").disabled = false; lobbyError(msg);
+    setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
+  }
   peer.on("open", () => connectToHost());
   peer.on("error", err => {
     console.warn(err);
     if (err.type === "peer-unavailable") {
-      if (!entered) { $("joinBtn").disabled = false; lobbyError("Sala não encontrada. Confira o código ou se o anfitrião ainda está online."); peer.destroy(); }
+      if (!entered) { failJoin("Sala não encontrada. Confira o código ou se o anfitrião ainda está online."); }
       else hostGone();
       return;
     }
-    if (!entered) { $("joinBtn").disabled = false; lobbyError("Falha na conexão: " + err.type); }
+    if (!entered) { failJoin("Falha na conexão: " + err.type); }
     else toast("Erro de conexão: " + err.type);
   });
   peer.on("disconnected", () => { if (!S.leaving) setTimeout(() => !peer.destroyed && peer.reconnect(), 1500); });
@@ -890,7 +1266,7 @@ function startViewer(name, code) {
     S.hostConn = conn;
     conn.on("open", async () => {
       try { conn.send({ t: "hello", token: await auth.currentUser.getIdToken() }); }
-      catch { lobbyError("Sua sessão expirou. Saia da conta e entre de novo."); $("joinBtn").disabled = false; }
+      catch { failJoin("Sua sessão expirou. Saia da conta e entre de novo."); }
     });
     conn.on("data", d => {
       if (!d || typeof d !== "object") return;
@@ -902,7 +1278,7 @@ function startViewer(name, code) {
           break;
         case "kicked":
           S.leaving = true;
-          if (!entered) { lobbyError("Você não pode entrar nesta sala."); $("joinBtn").disabled = false; }
+          if (!entered) { failJoin("Você não pode entrar nesta sala."); }
           else {
             waitingScreen(); setLive(false); renderUsers([]);
             $("phTitle").textContent = "Você foi removido da sala";
@@ -912,15 +1288,12 @@ function startViewer(name, code) {
           setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
           break;
         case "denied":
-          S.leaving = true; lobbyError("O anfitrião não conseguiu confirmar sua conta. Saia da conta, entre de novo e tente outra vez.");
-          $("joinBtn").disabled = false; setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
+          failJoin("O anfitrião não conseguiu confirmar sua conta. Saia da conta, entre de novo e tente outra vez.");
           break;
-        case "full": lobbyError("A sala está cheia."); $("joinBtn").disabled = false; break;
+        case "full": failJoin("A sala está cheia."); break;
         case "users": if (Array.isArray(d.list)) renderUsers(d.list.map(u => ({ id: u.id, name: cleanName(u.name), host: !!u.host, admin: !!u.admin }))); break;
         case "banned":
-          S.leaving = true; $("joinBtn").disabled = false;
-          lobbyError("Sua conta foi banida pelo administrador.");
-          setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
+          failJoin("Sua conta foi banida pelo administrador.");
           break;
         case "chat": addChat({ name: cleanName(d.name), text: String(d.text || ""), ts: d.ts || Date.now() }); break;
         case "sys": sysMsg(String(d.text || "")); break;
@@ -952,7 +1325,7 @@ function waitingScreen() {
 function hostGone() {
   waitingScreen(); setLive(false);
   $("phTitle").textContent = "O anfitrião saiu";
-  $("phText").textContent = "A sala foi encerrada. Recarregue a página para tentar entrar de novo.";
+  $("phText").textContent = "A sala foi encerrada. Clique em “Sair” para voltar.";
   sysMsg("Conexão com o anfitrião encerrada.");
   renderUsers([]);
 }
@@ -975,16 +1348,16 @@ function startStats() {
 }
 
 /* ---------- Saída ---------- */
-function leave() {
+async function leave() {
   S.leaving = true;
   if (S.role === "host") { stopShare(); broadcast({ t: "sys", text: "O anfitrião encerrou a sala." }); }
-  setTimeout(() => {
-    try { S.peer?.destroy(); } catch {}
-    location.href = location.href.split("#")[0];
-  }, 200);
+  await Promise.race([setPresence(), new Promise(r => setTimeout(r, 1500))]);   // tira a sala do seu status
+  try { S.peer?.destroy(); } catch {}
+  location.href = location.href.split("#")[0];
 }
 window.addEventListener("beforeunload", e => {
-  if (S.role === "host" && S.viewers.size && !S.leaving) { e.preventDefault(); e.returnValue = ""; }
+  if (S.role === "host" && S.viewers.size && !S.leaving) { e.preventDefault(); e.returnValue = ""; return; }
+  goOffline();
 });
 })();
 </script>
