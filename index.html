@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CineSala</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{
   --bg:#1e1f22;--panel:#2b2d31;--panel2:#313338;--line:#3f4147;--text:#f2f3f5;--muted:#a5a8b0;
@@ -37,6 +40,31 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
 .divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:18px 0 4px}
 .divider:before,.divider:after{content:"";flex:1;height:1px;background:var(--line)}
 .err{color:#ff8a8d;font-size:13px;min-height:18px;margin-top:10px}
+.okmsg{color:#7ee2a8}
+.tabs{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px;margin-bottom:6px}
+.tabs button{flex:1;background:transparent;padding:8px}
+.tabs button.on{background:var(--panel2);font-weight:700}
+.link{background:none;padding:0;color:#8ea1ff;font-size:13px;margin-top:10px}
+.link:hover{background:none;text-decoration:underline}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;color:#1f1f1f;font-weight:600}
+.gbtn:hover{background:#e9e9e9}
+.me{display:flex;align-items:center;gap:10px;background:var(--bg);padding:10px;border-radius:10px}
+.me .av{width:36px;height:36px;font-size:15px}
+.me div{flex:1;min-width:0}
+.me small{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me button{padding:6px 10px;font-size:13px}
+.tag.admin{background:var(--warn);color:#1e1f22}
+#adminBtn{background:var(--warn);color:#1e1f22;font-weight:700}
+#admin{min-height:100%;padding:16px;display:grid;place-items:start center}
+#admin .card{max-width:760px;margin-top:24px}
+#admin h2{margin:22px 0 8px;font-size:15px;text-transform:uppercase;color:var(--muted)}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl td{padding:8px 6px;border-top:1px solid var(--line);vertical-align:middle}
+.tbl td.act{text-align:right;white-space:nowrap}
+.tbl td.act button{padding:5px 9px;font-size:12px;margin-left:4px}
+.tbl small{color:var(--muted)}
+.empty{color:var(--muted);font-style:italic;padding:8px 0}
+@media (max-width:600px){.tbl td{display:block;border-top:0;padding:2px 0}.tbl tr{display:block;border-top:1px solid var(--line);padding:8px 0}.tbl td.act{text-align:left}}
 
 /* Room */
 #room{height:100%;display:grid;grid-template-columns:1fr 320px;grid-template-rows:auto 1fr auto}
@@ -95,18 +123,62 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
     <h1 class="logo">Cine<span>Sala</span></h1>
     <p class="sub">Transmita sua tela para os amigos e assistam juntos.</p>
 
-    <label for="nameIn">Seu apelido</label>
-    <input id="nameIn" class="full" maxlength="24" placeholder="Ex.: Lucas">
-
-    <button id="createBtn" class="primary full" style="margin-top:16px">Criar sala e transmitir</button>
-
-    <div class="divider">ou entre numa sala</div>
-    <label for="codeIn">Código da sala</label>
-    <div class="row">
-      <input id="codeIn" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:2px">
-      <button id="joinBtn">Entrar</button>
+    <!-- Login / cadastro -->
+    <div id="authPanel" class="hidden">
+      <div class="tabs"><button id="tabLogin" class="on" type="button">Entrar</button><button id="tabSignup" type="button">Criar conta</button></div>
+      <form id="authForm" autocomplete="on">
+        <div id="nameRow" class="hidden">
+          <label for="suName">Apelido</label>
+          <input id="suName" class="full" maxlength="24" placeholder="Como seus amigos vão te ver" autocomplete="nickname">
+        </div>
+        <label for="auEmail">E-mail</label>
+        <input id="auEmail" class="full" type="email" placeholder="voce@email.com" autocomplete="email" required>
+        <label for="auPass">Senha</label>
+        <input id="auPass" class="full" type="password" placeholder="Mínimo 6 caracteres" autocomplete="current-password" required minlength="6">
+        <button id="authBtn" class="primary full" style="margin-top:16px">Entrar</button>
+      </form>
+      <button id="forgotBtn" class="link" type="button">Esqueci minha senha</button>
+      <div class="divider">ou</div>
+      <button id="googleBtn" class="gbtn full" type="button"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Entrar com Google</button>
+      <div class="err" id="authErr"></div>
     </div>
-    <div class="err" id="lobbyErr"></div>
+
+    <!-- Logado -->
+    <div id="lobbyPanel" class="hidden">
+      <div class="me"><span class="av" id="meAv">?</span><div><b id="meName">—</b><small id="meEmail"></small></div><button id="logoutBtn" type="button">Sair da conta</button></div>
+
+      <button id="copyUidBtn" class="link hidden" type="button">Copiar meu ID de usuário (para configurar o admin)</button>
+      <button id="adminBtn" class="full hidden" style="margin-top:12px" type="button">🛡️ Painel de admin</button>
+      <button id="createBtn" class="primary full" style="margin-top:16px">Criar sala e transmitir</button>
+
+      <div class="divider">ou entre numa sala</div>
+      <label for="codeIn">Código da sala</label>
+      <div class="row">
+        <input id="codeIn" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:2px">
+        <button id="joinBtn">Entrar</button>
+      </div>
+      <div class="err" id="lobbyErr"></div>
+    </div>
+
+    <div id="setupPanel" class="hidden err">Login ainda não configurado: cole a configuração do Firebase no começo do script (FIREBASE_CONFIG).</div>
+  </div>
+</section>
+
+<!-- ===== ADMIN ===== -->
+<section id="admin" class="hidden">
+  <div class="card">
+    <div class="row" style="align-items:center">
+      <h1 class="logo" style="flex:1;margin:0">🛡️ Painel de admin</h1>
+      <button id="adminBack" type="button">← Voltar</button>
+    </div>
+    <p class="sub" style="margin:6px 0 0">Só a sua conta consegue ver esta página — o Firebase bloqueia qualquer outra.</p>
+    <div class="err" id="adminErr"></div>
+
+    <h2>Banidos de todas as salas</h2>
+    <table class="tbl"><tbody id="banList"></tbody></table>
+
+    <h2>Histórico de expulsões</h2>
+    <table class="tbl"><tbody id="kickList"></tbody></table>
   </div>
 </section>
 
@@ -168,6 +240,18 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
 "use strict";
 
 /* ---------- Config ---------- */
+/* ▼▼▼ COLE AQUI A CONFIGURAÇÃO DO SEU PROJETO FIREBASE ▼▼▼ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC9KoOg3QJIK5evHtE2IQWBvJArRjrwGNQ",
+  authDomain: "cinesala-61339.firebaseapp.com",
+  projectId: "cinesala-61339",
+  appId: "1:422540958502:web:20655c182e738635a7bfe7",
+};
+/* ▲▲▲ (a apiKey do Firebase é pública por design — pode ficar no site) ▲▲▲ */
+
+/* ▼ SEU ID DE USUÁRIO (admin). Use o botão "Copiar meu ID" na tela inicial. ▼
+   Isto só libera o botão do painel; quem protege os dados de verdade são as regras do Firestore. */
+const ADMIN_UID = "COLE_SEU_UID";
 const PREFIX = "cinesala-v1-";
 const QUALITY = {
   "1080p60": { w: 1920, h: 1080, fps: 60, bps: 9_000_000 },
@@ -235,7 +319,8 @@ const S = {
   // host
   stream: null,
   viewers: new Map(),  // peerId -> { conn, name, call }
-  banned: new Set(),   // apelidos expulsos (minúsculo)
+  banned: new Set(),   // uids (contas) expulsas
+  uid: "",
   // viewer
   hostConn: null,
   hostName: "",
@@ -244,17 +329,176 @@ const S = {
   leaving: false,
 };
 
+/* ---------- Login (Firebase Auth) ---------- */
+const AUTH_READY = !!FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.startsWith("COLE");
+let auth = null, db = null;
+const ERRS = {
+  "auth/invalid-email": "E-mail inválido.",
+  "auth/email-already-in-use": "Já existe uma conta com esse e-mail. Use a aba Entrar.",
+  "auth/weak-password": "Senha fraca: use pelo menos 6 caracteres.",
+  "auth/invalid-credential": "E-mail ou senha incorretos.",
+  "auth/invalid-login-credentials": "E-mail ou senha incorretos.",
+  "auth/wrong-password": "E-mail ou senha incorretos.",
+  "auth/user-not-found": "Não existe conta com esse e-mail.",
+  "auth/missing-password": "Digite a senha.",
+  "auth/too-many-requests": "Muitas tentativas. Espere um pouco e tente de novo.",
+  "auth/network-request-failed": "Sem conexão com a internet.",
+  "auth/popup-closed-by-user": "Janela do Google fechada antes de terminar.",
+  "auth/cancelled-popup-request": "",
+  "auth/popup-blocked": "O navegador bloqueou a janela do Google. Permita pop-ups para este site.",
+  "auth/unauthorized-domain": "Este site não está autorizado no Firebase (Authentication → Settings → Authorized domains).",
+  "auth/operation-not-allowed": "Esse tipo de login não está ativado no Firebase.",
+};
+function authMsg(e) { return e && e.code in ERRS ? ERRS[e.code] : "Erro: " + (e?.code || e?.message || e); }
+function authError(msg, ok = false) { const el = $("authErr"); el.textContent = msg; el.classList.toggle("okmsg", ok); }
+function accountName(u) { return cleanName(u.displayName || (u.email || "").split("@")[0]); }
+
+function showPanel(which) {
+  for (const id of ["authPanel", "lobbyPanel", "setupPanel"]) $(id).classList.toggle("hidden", id !== which);
+}
+function showLobby(u) {
+  S.name = accountName(u); S.uid = u.uid;
+  $("meName").textContent = S.name; $("meEmail").textContent = u.email || "";
+  $("meAv").textContent = S.name[0].toUpperCase(); $("meAv").style.background = colorFor(S.name);
+  $("adminBtn").classList.toggle("hidden", !isAdmin(u.uid));
+  $("copyUidBtn").classList.toggle("hidden", ADMIN_UID !== "COLE_SEU_UID");
+  showPanel("lobbyPanel");
+}
+function isAdmin(uid) { return !!uid && uid === ADMIN_UID; }
+
+let signupMode = false;
+function setMode(signup) {
+  signupMode = signup;
+  $("tabLogin").classList.toggle("on", !signup); $("tabSignup").classList.toggle("on", signup);
+  $("nameRow").classList.toggle("hidden", !signup);
+  $("authBtn").textContent = signup ? "Criar conta" : "Entrar";
+  $("auPass").autocomplete = signup ? "new-password" : "current-password";
+  $("forgotBtn").classList.toggle("hidden", signup);
+  authError("");
+}
+$("tabLogin").onclick = () => setMode(false);
+$("tabSignup").onclick = () => setMode(true);
+
+if (!AUTH_READY || !window.firebase) {
+  showPanel("setupPanel");
+  if (AUTH_READY) $("setupPanel").textContent = "Não consegui carregar o sistema de login. Verifique sua internet e recarregue.";
+} else {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  auth = firebase.auth();
+  auth.languageCode = "pt";
+  try { db = firebase.firestore(); } catch (e) { console.warn("Firestore indisponível", e); }
+  auth.onAuthStateChanged(u => { if (u) showLobby(u); else if (!S.role) showPanel("authPanel"); });
+
+  $("authForm").onsubmit = async e => {
+    e.preventDefault();
+    const email = $("auEmail").value.trim(), pass = $("auPass").value;
+    $("authBtn").disabled = true; authError("");
+    try {
+      if (signupMode) {
+        const nick = $("suName").value.trim();
+        if (!nick) { authError("Escolha um apelido."); $("suName").focus(); return; }
+        const cred = await auth.createUserWithEmailAndPassword(email, pass);
+        await cred.user.updateProfile({ displayName: cleanName(nick) });
+        showLobby(auth.currentUser);
+      } else {
+        await auth.signInWithEmailAndPassword(email, pass);
+      }
+    } catch (err) { authError(authMsg(err)); }
+    finally { $("authBtn").disabled = false; }
+  };
+  $("googleBtn").onclick = async () => {
+    authError("");
+    try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+    catch (err) { authError(authMsg(err)); }
+  };
+  $("forgotBtn").onclick = async () => {
+    const email = $("auEmail").value.trim();
+    if (!email) { authError("Digite seu e-mail acima e clique de novo em “Esqueci minha senha”."); $("auEmail").focus(); return; }
+    try { await auth.sendPasswordResetEmail(email); authError("Se existir uma conta com esse e-mail, enviamos um link para criar uma nova senha.", true); }
+    catch (err) { authError(authMsg(err)); }
+  };
+  $("logoutBtn").onclick = () => auth.signOut();
+}
+
+/* ---------- Painel de admin ---------- */
+$("copyUidBtn").onclick = async () => {
+  const uid = auth?.currentUser?.uid; if (!uid) return;
+  try { await navigator.clipboard.writeText(uid); toast("ID copiado: " + uid, 6000); } catch { prompt("Seu ID:", uid); }
+};
+let unsubKicks = null, unsubBans = null;
+function fmtDate(ts) { const d = ts?.toDate ? ts.toDate() : null; return d ? d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "agora"; }
+function cell(text, small) { const td = document.createElement("td"); td.textContent = text; if (small) { const s = document.createElement("small"); s.textContent = small; td.append(document.createElement("br"), s); } return td; }
+function actBtn(label, cls, fn) { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; return b; }
+function adminFail(e) { $("adminErr").textContent = e?.code === "permission-denied" ? "Sem permissão: confira as regras do Firestore e o ADMIN_UID." : "Erro: " + (e?.message || e); }
+
+function openAdmin() {
+  if (!db || !isAdmin(auth?.currentUser?.uid)) return;
+  $("lobby").classList.add("hidden"); $("admin").classList.remove("hidden"); $("adminErr").textContent = "";
+  unsubBans = db.collection("bans").orderBy("at", "desc").onSnapshot(snap => {
+    const tb = $("banList"); tb.textContent = "";
+    if (snap.empty) { const tr = document.createElement("tr"); tr.append(cell("Ninguém banido.")); tr.firstChild.className = "empty"; tb.append(tr); }
+    snap.forEach(doc => {
+      const b = doc.data(); const tr = document.createElement("tr");
+      const act = document.createElement("td"); act.className = "act";
+      act.append(actBtn("Desbanir", "ok", () => { if (confirm(`Desbanir ${b.name}?`)) doc.ref.delete().catch(adminFail); }));
+      tr.append(cell(b.name || "?", "ID: " + doc.id), cell(fmtDate(b.at), b.reason ? "Motivo: " + b.reason : ""), act);
+      tb.append(tr);
+    });
+  }, adminFail);
+  unsubKicks = db.collection("kicks").orderBy("at", "desc").limit(200).onSnapshot(snap => {
+    const tb = $("kickList"); tb.textContent = "";
+    if (snap.empty) { const tr = document.createElement("tr"); tr.append(cell("Nenhuma expulsão registrada.")); tr.firstChild.className = "empty"; tb.append(tr); }
+    snap.forEach(doc => {
+      const k = doc.data(); const tr = document.createElement("tr");
+      const act = document.createElement("td"); act.className = "act";
+      act.append(
+        actBtn("Banir de tudo", "danger", () => {
+          const reason = prompt(`Banir ${k.name} de TODAS as salas? Motivo (opcional):`);
+          if (reason === null) return;
+          db.collection("bans").doc(k.uid).set({ name: String(k.name || "").slice(0, 24), reason: reason.slice(0, 200), at: firebase.firestore.FieldValue.serverTimestamp() }).catch(adminFail);
+        }),
+        actBtn("Apagar", "", () => doc.ref.delete().catch(adminFail)),
+      );
+      tr.append(cell(k.name || "?", "ID: " + k.uid), cell(fmtDate(k.at), `por ${k.kickedByName || "?"} · sala ${k.room || "?"}`), act);
+      tb.append(tr);
+    });
+  }, adminFail);
+}
+function closeAdmin() {
+  unsubKicks?.(); unsubBans?.(); unsubKicks = unsubBans = null;
+  $("admin").classList.add("hidden"); $("lobby").classList.remove("hidden");
+}
+$("adminBtn").onclick = openAdmin;
+$("adminBack").onclick = closeAdmin;
+
+/* Banido pelo admin? (cada pessoa só consegue consultar um ID específico, nunca a lista) */
+async function isGloballyBanned(uid) {
+  if (!db || isAdmin(uid)) return false;
+  try { return (await db.collection("bans").doc(uid).get()).exists; }
+  catch (e) { console.warn("Checagem de banimento falhou", e); return false; }
+}
+
+/* O anfitrião confere no Firebase se o token do amigo é de uma conta real */
+async function verifyToken(idToken) {
+  if (typeof idToken !== "string" || idToken.length > 4096) return null;
+  try {
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_CONFIG.apiKey)}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken }) });
+    if (!r.ok) return null;
+    const u = (await r.json()).users?.[0];
+    if (!u || u.disabled) return null;
+    return { uid: u.localId, name: cleanName(u.displayName || (u.email || "").split("@")[0]) };
+  } catch { return null; }
+}
+
 /* ---------- UI: lobby ---------- */
-$("nameIn").value = store.get("cinesala-name") || "";
 const hashCode = location.hash.replace("#", "").toUpperCase().slice(0, 6);
 if (hashCode) { $("codeIn").value = hashCode; $("joinBtn").classList.add("primary"); }
 
 function lobbyError(msg) { $("lobbyErr").textContent = msg; }
 function requireName() {
-  const n = $("nameIn").value.trim();
-  if (!n) { lobbyError("Digite um apelido."); $("nameIn").focus(); return null; }
-  store.set("cinesala-name", n);
-  return cleanName(n);
+  if (!auth?.currentUser) { lobbyError("Faça login primeiro."); return null; }
+  return S.name;
 }
 function checkLib() {
   if (typeof Peer === "undefined") { lobbyError("Não consegui carregar a biblioteca de conexão. Verifique sua internet e recarregue."); return false; }
@@ -264,7 +508,11 @@ function checkLib() {
 $("createBtn").onclick = () => {
   const n = requireName(); if (!n || !checkLib()) return;
   if (!navigator.mediaDevices?.getDisplayMedia) { lobbyError("Seu navegador não permite transmitir a tela. Use Chrome ou Edge no computador."); return; }
-  startHost(n);
+  $("createBtn").disabled = true;
+  isGloballyBanned(S.uid).then(b => {
+    if (b) { $("createBtn").disabled = false; lobbyError("Sua conta foi banida pelo administrador."); return; }
+    startHost(n);
+  });
 };
 $("joinBtn").onclick = () => {
   const n = requireName(); if (!n || !checkLib()) return;
@@ -312,8 +560,9 @@ function renderUsers(list) {
     av.textContent = u.name[0].toUpperCase();
     const nm = document.createElement("span"); nm.textContent = u.name + (u.id === (S.peer && S.peer.id) ? " (você)" : "");
     li.append(av, nm);
-    if (u.host) { const t = document.createElement("span"); t.className = "tag"; t.textContent = "ANFITRIÃO"; li.append(t); }
-    else if (S.role === "host") {
+    if (u.admin) { const t = document.createElement("span"); t.className = "tag admin"; t.textContent = "ADMIN"; li.append(t); }
+    if (u.host) { const t = document.createElement("span"); t.className = "tag"; t.textContent = "ANFITRIÃO"; if (u.admin) t.style.marginLeft = "4px"; li.append(t); }
+    else if (S.role === "host" && !u.admin) {
       const k = document.createElement("button"); k.className = "kick"; k.textContent = "Expulsar";
       k.onclick = () => { if (confirm(`Expulsar ${u.name} da sala?`)) hostKick(u.id); };
       li.append(k);
@@ -394,14 +643,26 @@ function hostOnData(conn, d) {
   if (!d || typeof d !== "object") return;
   const v = S.viewers.get(conn.peer);
   if (d.t === "hello") {
-    if (S.viewers.size >= 8) { conn.send({ t: "full" }); setTimeout(() => conn.close(), 300); return; }
-    const nm = cleanName(d.name);
-    if (S.banned.has(nm.toLowerCase())) { conn.send({ t: "kicked" }); setTimeout(() => conn.close(), 300); return; }
-    S.viewers.set(conn.peer, { conn, name: nm, call: null });
-    conn.send({ t: "welcome", hostName: S.name, live: !!S.stream });
-    hostSyncUsers();
-    sysMsg(`${nm} entrou.`); broadcast({ t: "sys", text: `${nm} entrou.` }, conn.peer);
-    if (S.stream) hostCall(conn.peer);
+    if (v || conn._checking) return;
+    conn._checking = true;
+    const reject = t => { try { conn.send({ t }); } catch {} setTimeout(() => conn.close(), 300); };
+    verifyToken(d.token).then(async acc => {
+      if (!conn.open) return;
+      if (!acc) return reject("denied");                       // sem conta válida
+      if (S.banned.has(acc.uid) && !isAdmin(acc.uid)) return reject("kicked");   // expulso desta sala
+      if (await isGloballyBanned(acc.uid)) return reject("banned");               // banido pelo admin
+      if (!conn.open) return;
+      if (acc.uid === S.uid) return reject("denied");
+      for (const [oid, ov] of S.viewers) if (ov.uid === acc.uid) {   // mesma conta em outra aba: derruba a antiga
+        S.viewers.delete(oid); try { ov.call?.close(); ov.conn.close(); } catch {}
+      }
+      if (S.viewers.size >= 8) return reject("full");
+      S.viewers.set(conn.peer, { conn, name: acc.name, uid: acc.uid, call: null });
+      conn.send({ t: "welcome", hostName: S.name, live: !!S.stream });
+      hostSyncUsers();
+      sysMsg(`${acc.name} entrou.`); broadcast({ t: "sys", text: `${acc.name} entrou.` }, conn.peer);
+      if (S.stream) hostCall(conn.peer);
+    });
     return;
   }
   if (!v) return;
@@ -419,7 +680,12 @@ function hostDropViewer(id) {
 
 function hostKick(id) {
   const v = S.viewers.get(id); if (!v) return;
-  S.banned.add(v.name.toLowerCase());
+  if (isAdmin(v.uid)) { toast("O administrador não pode ser expulso."); return; }
+  S.banned.add(v.uid);
+  if (db) db.collection("kicks").add({
+    uid: v.uid, name: v.name, kickedByUid: S.uid, kickedByName: S.name, room: S.code,
+    at: firebase.firestore.FieldValue.serverTimestamp(),
+  }).catch(e => console.warn("Registro de expulsão falhou", e));
   S.viewers.delete(id);               // remove antes de fechar, para não aparecer "saiu"
   try { v.call?.close(); } catch {}
   try { v.conn.open && v.conn.send({ t: "kicked" }); } catch {}
@@ -433,7 +699,8 @@ function broadcast(msg, exceptId) {
 }
 function hostBroadcastChat(m) { addChat(m); broadcast(m); }
 function hostSyncUsers() {
-  const list = [{ id: S.peer.id, name: S.name, host: true }, ...[...S.viewers].map(([id, v]) => ({ id, name: v.name }))];
+  const list = [{ id: S.peer.id, name: S.name, host: true, admin: isAdmin(S.uid) },
+    ...[...S.viewers].map(([id, v]) => ({ id, name: v.name, admin: isAdmin(v.uid) }))];
   renderUsers(list); broadcast({ t: "users", list });
 }
 
@@ -541,7 +808,10 @@ function startViewer(name, code) {
   function connectToHost() {
     const conn = peer.connect(PREFIX + code, { reliable: true, metadata: { name } });
     S.hostConn = conn;
-    conn.on("open", () => conn.send({ t: "hello", name }));
+    conn.on("open", async () => {
+      try { conn.send({ t: "hello", token: await auth.currentUser.getIdToken() }); }
+      catch { lobbyError("Sua sessão expirou. Saia da conta e entre de novo."); $("joinBtn").disabled = false; }
+    });
     conn.on("data", d => {
       if (!d || typeof d !== "object") return;
       switch (d.t) {
@@ -561,8 +831,17 @@ function startViewer(name, code) {
           }
           setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
           break;
+        case "denied":
+          S.leaving = true; lobbyError("O anfitrião não conseguiu confirmar sua conta. Saia da conta, entre de novo e tente outra vez.");
+          $("joinBtn").disabled = false; setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
+          break;
         case "full": lobbyError("A sala está cheia."); $("joinBtn").disabled = false; break;
-        case "users": if (Array.isArray(d.list)) renderUsers(d.list.map(u => ({ id: u.id, name: cleanName(u.name), host: !!u.host }))); break;
+        case "users": if (Array.isArray(d.list)) renderUsers(d.list.map(u => ({ id: u.id, name: cleanName(u.name), host: !!u.host, admin: !!u.admin }))); break;
+        case "banned":
+          S.leaving = true; $("joinBtn").disabled = false;
+          lobbyError("Sua conta foi banida pelo administrador.");
+          setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
+          break;
         case "chat": addChat({ name: cleanName(d.name), text: String(d.text || ""), ts: d.ts || Date.now() }); break;
         case "sys": sysMsg(String(d.text || "")); break;
         case "react": showReaction(d.e, cleanName(d.name)); break;
