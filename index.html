@@ -54,10 +54,38 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
 .me small{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .me button{padding:6px 10px;font-size:13px}
 .tag.admin{background:var(--warn);color:#1e1f22}
-#adminBtn{background:var(--warn);color:#1e1f22;font-weight:700}
-#admin{min-height:100%;padding:16px;display:grid;place-items:start center}
-#admin .card{max-width:760px;margin-top:24px}
-#admin h2{margin:22px 0 8px;font-size:15px;text-transform:uppercase;color:var(--muted)}
+/* App (depois do login) */
+#home{height:100%;display:grid;grid-template-columns:240px 1fr}
+.side{background:var(--panel);display:flex;flex-direction:column;gap:4px;padding:16px 10px;min-height:0}
+.logo.sm{font-size:22px;padding:0 8px 14px}
+.nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;color:var(--muted)}
+.nav:hover{background:var(--panel2);color:var(--text)}
+.nav.on{background:var(--panel2);color:var(--text);font-weight:700}
+#adminBtn.nav{color:var(--warn)}
+.side .me{margin:8px 0 4px}
+.main{overflow:auto;padding:32px 28px;min-width:0}
+.view{max-width:860px;margin:0 auto}
+.hello{font-size:28px;margin:0 0 4px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:20px}
+.card2{background:var(--panel);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:10px}
+.card2 h3{margin:0;font-size:18px}
+.card2 p{margin:0 0 6px;color:var(--muted);flex:1}
+.card2 .big{font-size:34px}
+#adminContent h2{margin:22px 0 8px;font-size:15px;text-transform:uppercase;color:var(--muted)}
+#roomAdminBtn{background:var(--warn);color:#1e1f22;font-weight:700}
+.modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;padding:16px;z-index:8}
+.modalBox{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:24px;width:100%;max-width:820px;max-height:90vh;overflow:auto}
+.modalX{position:absolute;top:12px;right:12px;padding:6px 10px}
+@media (max-width:760px){
+  #home{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .side{flex-direction:row;flex-wrap:wrap;align-items:center;padding:10px}
+  .logo.sm{padding:0 8px 0 4px;font-size:18px}
+  .nav{width:auto}
+  .nav span{display:none}
+  .side .me{display:none}
+  .side .spacer{flex:1}
+  .main{padding:20px 16px}
+}
 .tbl{width:100%;border-collapse:collapse;font-size:14px}
 .tbl td{padding:8px 6px;border-top:1px solid var(--line);vertical-align:middle}
 .tbl td.act{text-align:right;white-space:nowrap}
@@ -143,44 +171,67 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
       <div class="err" id="authErr"></div>
     </div>
 
-    <!-- Logado -->
-    <div id="lobbyPanel" class="hidden">
-      <div class="me"><span class="av" id="meAv">?</span><div><b id="meName">—</b><small id="meEmail"></small></div><button id="logoutBtn" type="button">Sair da conta</button></div>
-
-      <button id="copyUidBtn" class="link hidden" type="button">Copiar meu ID de usuário (para configurar o admin)</button>
-      <button id="adminBtn" class="full hidden" style="margin-top:12px" type="button">🛡️ Painel de admin</button>
-      <button id="createBtn" class="primary full" style="margin-top:16px">Criar sala e transmitir</button>
-
-      <div class="divider">ou entre numa sala</div>
-      <label for="codeIn">Código da sala</label>
-      <div class="row">
-        <input id="codeIn" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:2px">
-        <button id="joinBtn">Entrar</button>
-      </div>
-      <div class="err" id="lobbyErr"></div>
-    </div>
-
     <div id="setupPanel" class="hidden err">Login ainda não configurado: cole a configuração do Firebase no começo do script (FIREBASE_CONFIG).</div>
   </div>
 </section>
 
-<!-- ===== ADMIN ===== -->
-<section id="admin" class="hidden">
-  <div class="card">
-    <div class="row" style="align-items:center">
-      <h1 class="logo" style="flex:1;margin:0">🛡️ Painel de admin</h1>
-      <button id="adminBack" type="button">← Voltar</button>
+<!-- ===== APP (depois do login) ===== -->
+<section id="home" class="hidden">
+  <nav class="side">
+    <div class="logo sm">Cine<span>Sala</span></div>
+    <button class="nav on" data-view="homeView" type="button">🏠 <span>Início</span></button>
+    <button class="nav hidden" id="adminBtn" data-view="adminView" type="button">🛡️ <span>Painel de admin</span></button>
+    <span class="spacer"></span>
+    <div class="me"><span class="av" id="meAv">?</span><div><b id="meName">—</b><small id="meEmail"></small></div></div>
+    <button id="logoutBtn" type="button" class="nav">↩ <span>Sair da conta</span></button>
+  </nav>
+
+  <main class="main">
+    <div id="homeView" class="view">
+      <h1 class="hello">Olá, <span id="helloName"></span> 👋</h1>
+      <p class="sub">O que vamos assistir hoje?</p>
+      <div class="cards">
+        <div class="card2">
+          <div class="big">🎬</div>
+          <h3>Transmitir</h3>
+          <p>Crie uma sala, compartilhe sua tela com som e mande o link para os amigos.</p>
+          <button id="createBtn" class="primary full">Criar sala e transmitir</button>
+        </div>
+        <div class="card2">
+          <div class="big">🍿</div>
+          <h3>Assistir</h3>
+          <p>Recebeu um código de sala? Digite aqui para entrar.</p>
+          <div class="row">
+            <input id="codeIn" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:2px">
+            <button id="joinBtn">Entrar</button>
+          </div>
+        </div>
+      </div>
+      <div class="err" id="lobbyErr"></div>
+      <button id="copyUidBtn" class="link hidden" type="button">Copiar meu ID de usuário (para configurar o admin)</button>
     </div>
-    <p class="sub" style="margin:6px 0 0">Só a sua conta consegue ver esta página — o Firebase bloqueia qualquer outra.</p>
-    <div class="err" id="adminErr"></div>
 
-    <h2>Banidos de todas as salas</h2>
-    <table class="tbl"><tbody id="banList"></tbody></table>
-
-    <h2>Histórico de expulsões</h2>
-    <table class="tbl"><tbody id="kickList"></tbody></table>
-  </div>
+    <div id="adminView" class="view hidden">
+      <div id="adminContent">
+        <h1 class="hello">🛡️ Painel de admin</h1>
+        <p class="sub">Só a sua conta consegue ver isto — o Firebase bloqueia qualquer outra.</p>
+        <div class="err" id="adminErr"></div>
+        <h2>Banidos de todas as salas</h2>
+        <table class="tbl"><tbody id="banList"></tbody></table>
+        <h2>Histórico de expulsões</h2>
+        <table class="tbl"><tbody id="kickList"></tbody></table>
+      </div>
+    </div>
+  </main>
 </section>
+
+<!-- Painel de admin por cima da sala -->
+<div id="adminModal" class="modal hidden">
+  <div class="modalBox">
+    <button id="adminModalClose" class="modalX" type="button" title="Fechar">✕</button>
+    <div id="adminSlot"></div>
+  </div>
+</div>
 
 <!-- ===== ROOM ===== -->
 <section id="room" class="hidden">
@@ -191,6 +242,7 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
     <span class="pill" id="livePill">Offline</span>
     <span class="pill" id="countPill">0 assistindo</span>
     <span class="spacer"></span>
+    <button id="roomAdminBtn" class="hidden" type="button">🛡️ Admin</button>
     <button id="theaterBtn" title="Esconder chat">Modo cinema</button>
     <button id="leaveBtn" class="danger">Sair</button>
   </header>
@@ -354,16 +406,30 @@ function authError(msg, ok = false) { const el = $("authErr"); el.textContent = 
 function accountName(u) { return cleanName(u.displayName || (u.email || "").split("@")[0]); }
 
 function showPanel(which) {
-  for (const id of ["authPanel", "lobbyPanel", "setupPanel"]) $(id).classList.toggle("hidden", id !== which);
+  for (const id of ["authPanel", "setupPanel"]) $(id).classList.toggle("hidden", id !== which);
+  $("home").classList.add("hidden"); $("lobby").classList.remove("hidden");
 }
+/* Logou → vai direto para dentro do app */
 function showLobby(u) {
   S.name = accountName(u); S.uid = u.uid;
   $("meName").textContent = S.name; $("meEmail").textContent = u.email || "";
+  $("helloName").textContent = S.name;
   $("meAv").textContent = S.name[0].toUpperCase(); $("meAv").style.background = colorFor(S.name);
-  $("adminBtn").classList.toggle("hidden", !isAdmin(u.uid));
+  const admin = isAdmin(u.uid);
+  $("adminBtn").classList.toggle("hidden", !admin);
+  $("roomAdminBtn").classList.toggle("hidden", !admin);
   $("copyUidBtn").classList.toggle("hidden", ADMIN_UID !== "COLE_SEU_UID");
-  showPanel("lobbyPanel");
+  if (S.role) return;                       // já está numa sala
+  $("lobby").classList.add("hidden");
+  $("home").classList.remove("hidden");
+  showView("homeView");
+  if (admin) startAdminFeed(); else stopAdminFeed();
 }
+function showView(id) {
+  for (const v of ["homeView", "adminView"]) $(v).classList.toggle("hidden", v !== id);
+  document.querySelectorAll(".side .nav[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === id));
+}
+document.querySelectorAll(".side .nav[data-view]").forEach(b => b.onclick = () => showView(b.dataset.view));
 function isAdmin(uid) { return !!uid && uid === ADMIN_UID; }
 
 let signupMode = false;
@@ -387,7 +453,7 @@ if (!AUTH_READY || !window.firebase) {
   auth = firebase.auth();
   auth.languageCode = "pt";
   try { db = firebase.firestore(); } catch (e) { console.warn("Firestore indisponível", e); }
-  auth.onAuthStateChanged(u => { if (u) showLobby(u); else if (!S.role) showPanel("authPanel"); });
+  auth.onAuthStateChanged(u => { if (u) showLobby(u); else { stopAdminFeed(); if (!S.role) showPanel("authPanel"); } });
 
   $("authForm").onsubmit = async e => {
     e.preventDefault();
@@ -431,9 +497,10 @@ function cell(text, small) { const td = document.createElement("td"); td.textCon
 function actBtn(label, cls, fn) { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; return b; }
 function adminFail(e) { $("adminErr").textContent = e?.code === "permission-denied" ? "Sem permissão: confira as regras do Firestore e o ADMIN_UID." : "Erro: " + (e?.message || e); }
 
-function openAdmin() {
-  if (!db || !isAdmin(auth?.currentUser?.uid)) return;
-  $("lobby").classList.add("hidden"); $("admin").classList.remove("hidden"); $("adminErr").textContent = "";
+/* Mantém as listas do admin atualizadas ao vivo enquanto você estiver logado */
+function startAdminFeed() {
+  if (!db || unsubBans || !isAdmin(auth?.currentUser?.uid)) return;
+  $("adminErr").textContent = "";
   unsubBans = db.collection("bans").orderBy("at", "desc").onSnapshot(snap => {
     const tb = $("banList"); tb.textContent = "";
     if (snap.empty) { const tr = document.createElement("tr"); tr.append(cell("Ninguém banido.")); tr.firstChild.className = "empty"; tb.append(tr); }
@@ -464,12 +531,24 @@ function openAdmin() {
     });
   }, adminFail);
 }
-function closeAdmin() {
+function stopAdminFeed() {
   unsubKicks?.(); unsubBans?.(); unsubKicks = unsubBans = null;
-  $("admin").classList.add("hidden"); $("lobby").classList.remove("hidden");
 }
-$("adminBtn").onclick = openAdmin;
-$("adminBack").onclick = closeAdmin;
+/* Dentro da sala: abre o mesmo painel por cima do vídeo */
+function openAdminModal() {
+  if (!isAdmin(S.uid)) return;
+  startAdminFeed();
+  $("adminSlot").append($("adminContent"));
+  $("adminModal").classList.remove("hidden");
+}
+function closeAdminModal() {
+  $("adminView").append($("adminContent"));
+  $("adminModal").classList.add("hidden");
+}
+$("roomAdminBtn").onclick = openAdminModal;
+$("adminModalClose").onclick = closeAdminModal;
+$("adminModal").onclick = e => { if (e.target === $("adminModal")) closeAdminModal(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("adminModal").classList.contains("hidden")) closeAdminModal(); });
 
 /* Banido pelo admin? (cada pessoa só consegue consultar um ID específico, nunca a lista) */
 async function isGloballyBanned(uid) {
@@ -524,6 +603,7 @@ $("codeIn").addEventListener("keydown", e => { if (e.key === "Enter") $("joinBtn
 
 function enterRoom() {
   $("lobby").classList.add("hidden");
+  $("home").classList.add("hidden");
   $("room").classList.remove("hidden");
   $("roomCode").textContent = S.code;
   history.replaceState(null, "", "#" + S.code);
