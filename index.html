@@ -343,7 +343,7 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
   </aside>
 
   <footer>
-    <span id="hostCtrls" class="hidden" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span id="shareCtrls" class="hidden" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button id="shareBtn" class="ok">▶ Iniciar transmissão</button>
       <select id="quality" title="Qualidade">
         <option value="1080p60">1080p · 60fps</option>
@@ -423,8 +423,21 @@ function toast(msg, ms = 3500) {
 function cleanName(s) { return String(s || "").trim().slice(0, 24) || "Anônimo"; }
 function timeStr(ts) { return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }
 
+/* Vídeo: começa já em alta qualidade, sem ficar minúsculo enquanto a conexão "aquece"
+   (sem isso o Chrome começa em ~200p e, com a tela parada, demora muito para subir) */
+function sdpVideo(sdp) {
+  const pts = [...sdp.matchAll(/a=rtpmap:(\d+) (VP8|VP9|H264|AV1)\/90000/gi)].map(m => m[1]);
+  const extra = "x-google-start-bitrate=3000;x-google-min-bitrate=1000;x-google-max-bitrate=9000";
+  for (const pt of pts) {
+    const re = new RegExp(`a=fmtp:${pt} (.*)`);
+    if (re.test(sdp)) sdp = sdp.replace(re, (line, params) => params.includes("x-google-") ? line : `a=fmtp:${pt} ${params};${extra}`);
+    else sdp = sdp.replace(new RegExp(`(a=rtpmap:${pt} [^\r\n]*)`), `$1\r\na=fmtp:${pt} ${extra}`);
+  }
+  return sdp;
+}
 /* Opus em estéreo e alta qualidade (som de filme, não de chamada) */
 function sdpTransform(sdp) {
+  sdp = sdpVideo(sdp);
   const m = sdp.match(/a=rtpmap:(\d+) opus\/48000\/2/i);
   if (!m) return sdp;
   const pt = m[1];
@@ -454,6 +467,10 @@ const S = {
   hostConn: null,
   hostName: "",
   users: [],
+  // todos: quem está transmitindo na sala e as chamadas de vídeo
+  presenter: null,     // { id: peerId, name } de quem está transmitindo
+  out: new Map(),      // peerId -> chamada que EU estou enviando (quando eu transmito)
+  inCall: null,        // chamada que estou recebendo (de quem está transmitindo)
   statsTimer: null,
   leaving: false,
 };
@@ -712,8 +729,8 @@ function setPresence() {
   return db.collection("presence").doc(S.uid).set({
     name: S.name, at: ts(),
     room: inRoom ? S.code : "",
-    live: inRoom && S.role === "host" && !!S.stream,
-    watching: inRoom && S.role === "viewer",
+    live: inRoom && !!S.stream,
+    watching: inRoom && S.role === "viewer" && !S.stream,
   }).catch(e => console.warn("status", e));
 }
 function goOffline() {
@@ -853,13 +870,12 @@ function renderFriendView() {
   const canWatch = !!f.room && f.state !== "off" && S.code !== f.room;
   $("fvWatch").classList.toggle("hidden", !canWatch);
   $("fvWatch").textContent = f.state === "live" ? `▶ Assistir ${f.name}` : "▶ Entrar na mesma sala";
-  const hosting = S.role === "host";
-  $("fvStream").textContent = hosting ? `📨 Chamar ${f.name} para minha sala` : `📺 Transmitir para ${f.name}`;
-  $("fvStream").disabled = S.role === "viewer";
+  const inRoom = !!S.role;
+  $("fvStream").textContent = inRoom ? `📨 Chamar ${f.name} para esta sala` : `📺 Transmitir para ${f.name}`;
+  $("fvStream").disabled = false;
   $("fvHint").textContent =
-    S.role === "viewer" ? "Você está assistindo uma sala. Saia dela para começar a sua transmissão." :
     f.state === "off" ? `${f.name} está offline — o convite fica esperando por 10 minutos.` :
-    hosting ? "Seu amigo vai receber um aviso na tela para entrar." :
+    inRoom ? "Seu amigo vai receber um aviso na tela para entrar. Para transmitir, use “Iniciar transmissão” dentro da sala." :
     "Você escolhe a tela/aba, a sala é criada e seu amigo recebe o convite na hora.";
 }
 $("fvStream").onclick = () => F.selected && streamTo(F.selected);
@@ -872,8 +888,7 @@ $("fvRemove").onclick = () => {
 
 /* Transmitir direto para um amigo (sem código) */
 async function streamTo(uid) {
-  if (S.role === "viewer") return toast("Saia da sala que você está assistindo antes de transmitir.");
-  if (S.role === "host") { await sendInvite(uid); return; }
+  if (S.role) { await sendInvite(uid); return; }
   if (!checkLib()) return;
   if (!navigator.mediaDevices?.getDisplayMedia) return toast("Seu navegador não permite transmitir a tela. Use Chrome ou Edge no computador.");
   const stream = await captureScreen();          // escolhe a tela já no clique
@@ -965,11 +980,11 @@ function enterRoom() {
   setPresence();
   $("roomCode").textContent = S.code;
   history.replaceState(null, "", "#" + S.code);
+  $("shareCtrls").classList.remove("hidden");
+  updateShareBtn();
   if (S.role === "host") {
-    $("hostCtrls").classList.remove("hidden");
     $("phTitle").textContent = "Você é o anfitrião";
     $("phText").textContent = "Clique em “Iniciar transmissão”, escolha a aba/tela e marque “Compartilhar áudio”.";
-    $("volWrap").classList.add("hidden");
   }
 }
 
@@ -1035,7 +1050,7 @@ function showReaction(e, name) {
 function setLive(on) {
   const p = $("livePill"); p.textContent = on ? "● AO VIVO" : "Offline"; p.classList.toggle("live", on);
   $("roomNavDot").className = "dot " + (on ? "live" : "on");
-  if (S.role === "host") setPresence();
+  setPresence();
 }
 
 $("chatForm").onsubmit = e => {
@@ -1076,6 +1091,7 @@ function startHost(name, attempt = 0, onOpen = null) {
     else toast("Erro de conexão: " + err.type);
   });
   peer.on("disconnected", () => { if (!S.leaving) { toast("Reconectando ao servidor…"); setTimeout(() => !peer.destroyed && peer.reconnect(), 1500); } });
+  peer.on("call", onIncomingCall);
   peer.on("connection", conn => {
     conn.on("data", d => hostOnData(conn, d));
     conn.on("close", () => hostDropViewer(conn.peer));
@@ -1098,27 +1114,40 @@ function hostOnData(conn, d) {
       if (!conn.open) return;
       if (acc.uid === S.uid) return reject("denied");
       for (const [oid, ov] of S.viewers) if (ov.uid === acc.uid) {   // mesma conta em outra aba: derruba a antiga
-        S.viewers.delete(oid); try { ov.call?.close(); ov.conn.close(); } catch {}
+        S.viewers.delete(oid); if (S.presenter?.id === oid) hostSetPresenter(null);
+        try { ov.conn.close(); } catch {}
       }
       if (S.viewers.size >= 8) return reject("full");
-      S.viewers.set(conn.peer, { conn, name: acc.name, uid: acc.uid, call: null });
-      conn.send({ t: "welcome", hostName: S.name, live: !!S.stream });
-      hostSyncUsers();
+      S.viewers.set(conn.peer, { conn, name: acc.name, uid: acc.uid });
+      conn.send({ t: "welcome", hostName: S.name, presenter: S.presenter });
+      hostSyncUsers();   // quem estiver transmitindo liga para o novo espectador
       sysMsg(`${acc.name} entrou.`); broadcast({ t: "sys", text: `${acc.name} entrou.` }, conn.peer);
-      if (S.stream) hostCall(conn.peer);
     });
     return;
   }
   if (!v) return;
   if (d.t === "chat") hostBroadcastChat({ t: "chat", name: v.name, text: String(d.text || "").slice(0, 400), ts: Date.now() });
   else if (d.t === "react") { showReaction(d.e, v.name); broadcast({ t: "react", e: d.e, name: v.name }); }
+  else if (d.t === "present") {   // espectador começou/parou de transmitir a tela dele
+    if (d.on && S.presenter && S.presenter.id !== conn.peer) { conn.send({ t: "presentBusy", name: S.presenter.name }); return; }
+    if (d.on) hostSetPresenter({ id: conn.peer, name: v.name });
+    else if (S.presenter?.id === conn.peer) hostSetPresenter(null);
+  }
+}
+
+/* Só o anfitrião decide quem está transmitindo; uma pessoa por vez */
+function hostSetPresenter(p) {
+  const prev = S.presenter;
+  S.presenter = p;
+  broadcast({ t: "presenter", p });
+  onPresenter(prev);
 }
 
 function hostDropViewer(id) {
   const v = S.viewers.get(id); if (!v) return;
-  try { v.call?.close(); } catch {}
   S.viewers.delete(id);
   hostSyncUsers();
+  if (S.presenter?.id === id) hostSetPresenter(null);
   sysMsg(`${v.name} saiu.`); broadcast({ t: "sys", text: `${v.name} saiu.` });
 }
 
@@ -1131,7 +1160,7 @@ function hostKick(id) {
     at: firebase.firestore.FieldValue.serverTimestamp(),
   }).catch(e => console.warn("Registro de expulsão falhou", e));
   S.viewers.delete(id);               // remove antes de fechar, para não aparecer "saiu"
-  try { v.call?.close(); } catch {}
+  if (S.presenter?.id === id) hostSetPresenter(null);
   try { v.conn.open && v.conn.send({ t: "kicked" }); } catch {}
   setTimeout(() => { try { v.conn.close(); } catch {} }, 300);
   hostSyncUsers();
@@ -1146,6 +1175,7 @@ function hostSyncUsers() {
   const list = [{ id: S.peer.id, name: S.name, host: true, admin: isAdmin(S.uid) },
     ...[...S.viewers].map(([id, v]) => ({ id, name: v.name, admin: isAdmin(v.uid) }))];
   renderUsers(list); broadcast({ t: "users", list });
+  syncOutgoing();
 }
 
 async function tuneSenders(pc) {
@@ -1157,7 +1187,8 @@ async function tuneSenders(pc) {
     if (sender.track.kind === "video") {
       p.encodings[0].maxBitrate = q.bps;
       p.encodings[0].maxFramerate = q.fps;
-      p.degradationPreference = "maintain-framerate";
+      p.encodings[0].scaleResolutionDownBy = 1;
+      p.degradationPreference = "maintain-resolution";   // se a internet apertar, cai o fps, não a nitidez
     } else {
       p.encodings[0].maxBitrate = AUDIO_BPS;
     }
@@ -1165,21 +1196,93 @@ async function tuneSenders(pc) {
   }
 }
 
-function hostCall(id) {
-  const v = S.viewers.get(id); if (!v || !S.stream) return;
-  try { v.call?.close(); } catch {}
+/* =====================================================
+   TRANSMISSÃO (anfitrião ou qualquer espectador da sala)
+   Quem transmite liga direto para cada pessoa da sala.
+   ===================================================== */
+function isMember(id) {
+  if (S.role === "host") return S.viewers.has(id);
+  return id === PREFIX + S.code || S.users.some(u => u.id === id);
+}
+function roomTargets() {
+  if (S.role === "host") return [...S.viewers.keys()];
+  return S.users.map(u => u.id).filter(id => id !== S.peer?.id);
+}
+/* Liga para quem ainda não recebe a minha tela e desliga quem saiu */
+function syncOutgoing() {
+  const mine = !!S.stream && !!S.peer && S.presenter?.id === S.peer.id;
+  const want = new Set(mine ? roomTargets() : []);
+  for (const [id, c] of S.out) if (!want.has(id)) { S.out.delete(id); try { c.close(); } catch {} }
+  for (const id of want) if (!S.out.has(id)) callPeer(id);
+}
+function callPeer(id) {
   const call = S.peer.call(id, S.stream, { sdpTransform });
-  v.call = call;
+  if (!call) return;
+  S.out.set(id, call);
   const pc = call.peerConnection;
-  if (pc) {
-    pc.addEventListener("connectionstatechange", () => { if (pc.connectionState === "connected") tuneSenders(pc); });
-  }
+  if (pc) pc.addEventListener("connectionstatechange", () => { if (pc.connectionState === "connected") tuneSenders(pc); });
+  call.on("close", () => { if (S.out.get(id) === call) S.out.delete(id); });
   call.on("error", e => console.warn("call", e));
 }
 
+/* Chamada de vídeo chegando de quem está transmitindo */
+function onIncomingCall(call) {
+  if (!isMember(call.peer) && call.peer !== S.presenter?.id) { try { call.close(); } catch {} return; }
+  closeIn();
+  S.inCall = call;
+  call.answer(undefined, { sdpTransform });
+  call.on("stream", remote => { if (S.inCall === call && !S.stream) showRemote(remote); });
+  call.on("close", () => {
+    if (S.inCall !== call) return;
+    S.inCall = null;
+    if (!S.stream) waitingScreen();
+  });
+  call.on("error", e => console.warn("call", e));
+}
+function closeIn() {
+  const c = S.inCall; S.inCall = null;
+  if (c) try { c.close(); } catch {}
+}
+
+/* Mudou quem está transmitindo (todo mundo roda isto) */
+function onPresenter(prev) {
+  const p = S.presenter, mine = !!p && p.id === S.peer?.id;
+  if (mine && !S.stream) {   // parei antes do anfitrião confirmar
+    if (S.role === "host") return hostSetPresenter(null);
+    S.hostConn?.open && S.hostConn.send({ t: "present", on: false });
+  }
+  if (!mine && S.stream) { stopLocal(); toast(p ? "Sua transmissão foi encerrada." : "O anfitrião encerrou a sua transmissão."); }
+  if (p?.id !== prev?.id) {
+    if (p) sysMsg(mine ? "Você está transmitindo para a sala." : `${p.name} começou a transmitir.`);
+    else if (prev) sysMsg(`${prev.name} parou de transmitir.`);
+  }
+  if (S.inCall && S.inCall.peer !== p?.id) closeIn();
+  if (mine && S.stream) showLocal();
+  else if (!S.inCall) waitingScreen();
+  syncOutgoing();
+  setLive(!!p && (mine ? !!S.stream : true));
+  updateShareBtn();
+}
+
+function updateShareBtn() {
+  const b = $("shareBtn"), other = !S.stream && S.presenter && S.presenter.id !== S.peer?.id;
+  const hostStops = other && S.role === "host";   // o anfitrião pode encerrar a transmissão de alguém
+  b.textContent = S.stream ? "■ Parar transmissão" : hostStops ? `■ Encerrar transmissão de ${S.presenter.name}` : other ? `🔒 ${S.presenter.name} está transmitindo` : "▶ Iniciar transmissão";
+  b.className = S.stream || hostStops ? "danger" : "ok";
+  b.disabled = !!other && !hostStops;
+  b.title = other && !hostStops ? "Só uma pessoa transmite por vez. Espere ela parar." : "";
+}
+
 async function startShare() {
+  if (S.presenter && S.presenter.id !== S.peer?.id) {
+    if (S.role === "host" && confirm(`Encerrar a transmissão de ${S.presenter.name}?`)) hostSetPresenter(null);
+    return;
+  }
+  if (!navigator.mediaDevices?.getDisplayMedia) return toast("Seu navegador não permite transmitir a tela. Use Chrome ou Edge no computador.");
   const stream = await captureScreen();
-  if (stream) applyStream(stream);
+  if (!stream) return;
+  if (!S.role || (S.role === "viewer" && !S.hostConn?.open)) { stream.getTracks().forEach(t => t.stop()); return; }
+  applyStream(stream);
 }
 /* Abre a janela do navegador para escolher tela/aba (precisa vir de um clique) */
 async function captureScreen() {
@@ -1203,29 +1306,50 @@ function applyStream(stream) {
   if (!stream.getAudioTracks().length) {
     toast("⚠️ Sem áudio! Pare e inicie de novo marcando “Compartilhar áudio” na janela de escolha.", 8000);
   }
-  vt.addEventListener("ended", stopShare);
+  vt.addEventListener("ended", () => { if (S.stream === stream) stopShare(); });
   S.stream = stream;
-  const vid = $("video"); vid.srcObject = stream; vid.muted = true; vid.play().catch(() => {});
-  $("placeholder").classList.add("hidden");
-  $("shareBtn").textContent = "■ Parar transmissão"; $("shareBtn").className = "danger";
-  $("quality").disabled = true;
-  setLive(true);
-  broadcast({ t: "live", on: true });
-  for (const id of S.viewers.keys()) hostCall(id);
+  closeIn();
+  showLocal();
+  updateShareBtn();
+  if (S.role === "host") hostSetPresenter({ id: S.peer.id, name: S.name });
+  else S.hostConn.send({ t: "present", on: true });   // o anfitrião avisa a sala e aí eu ligo para todos
 }
-
+function showLocal() {
+  const vid = $("video");
+  if (vid.srcObject !== S.stream) { vid.srcObject = S.stream; vid.muted = true; vid.play().catch(() => {}); }
+  $("placeholder").classList.add("hidden");
+  $("clickToPlay").classList.add("hidden");
+  $("stats").classList.add("hidden");
+}
+/* Para só a minha captura (sem avisar ninguém) */
+function stopLocal() {
+  if (!S.stream) return;
+  const st = S.stream; S.stream = null;
+  st.getTracks().forEach(t => t.stop());
+  syncOutgoing();
+  if ($("video").srcObject === st) waitingScreen();
+  updateShareBtn();
+}
 function stopShare() {
   if (!S.stream) return;
-  S.stream.getTracks().forEach(t => t.stop());
-  S.stream = null;
-  for (const v of S.viewers.values()) { try { v.call?.close(); } catch {} v.call = null; }
-  $("video").srcObject = null;
-  $("placeholder").classList.remove("hidden");
-  $("shareBtn").textContent = "▶ Iniciar transmissão"; $("shareBtn").className = "ok";
-  $("quality").disabled = false;
-  setLive(false);
-  broadcast({ t: "live", on: false });
+  stopLocal();
+  if (S.role === "host") { if (S.presenter?.id === S.peer?.id) hostSetPresenter(null); }
+  else if (S.hostConn?.open) S.hostConn.send({ t: "present", on: false });
+  setPresence();
 }
+
+/* Trocar a qualidade funciona também no meio da transmissão */
+{ const q = store.get("cinesala-quality"); if (q && QUALITY[q]) $("quality").value = q; }
+$("quality").onchange = async () => {
+  const sel = $("quality"); store.set("cinesala-quality", sel.value);
+  if (!S.stream) return;
+  const q = QUALITY[sel.value], vt = S.stream.getVideoTracks()[0];
+  try {
+    await vt.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { ideal: q.fps, max: q.fps } });
+  } catch (e) { console.warn("applyConstraints", e); }
+  for (const c of S.out.values()) if (c.peerConnection) tuneSenders(c.peerConnection);
+  toast("Qualidade alterada para " + sel.options[sel.selectedIndex].text);
+};
 $("shareBtn").onclick = () => (S.stream ? stopShare() : startShare());
 
 /* =====================================================
@@ -1255,11 +1379,7 @@ function startViewer(name, code) {
     else toast("Erro de conexão: " + err.type);
   });
   peer.on("disconnected", () => { if (!S.leaving) setTimeout(() => !peer.destroyed && peer.reconnect(), 1500); });
-  peer.on("call", call => {
-    call.answer(undefined, { sdpTransform });
-    call.on("stream", remote => showRemote(remote));
-    call.on("close", () => { if (S.hostConn?.open) waitingScreen(); });
-  });
+  peer.on("call", onIncomingCall);
 
   function connectToHost() {
     const conn = peer.connect(PREFIX + code, { reliable: true, metadata: { name } });
@@ -1274,12 +1394,13 @@ function startViewer(name, code) {
         case "welcome":
           entered = true; lobbyError(""); S.hostName = d.hostName; enterRoom();
           sysMsg(`Você entrou na sala de ${d.hostName}.`);
-          setLive(!!d.live); if (!d.live) waitingScreen();
+          S.presenter = cleanPresenter(d.presenter); onPresenter(null);
           break;
         case "kicked":
           S.leaving = true;
           if (!entered) { failJoin("Você não pode entrar nesta sala."); }
           else {
+            stopLocal(); closeIn(); S.presenter = null;
             waitingScreen(); setLive(false); renderUsers([]);
             $("phTitle").textContent = "Você foi removido da sala";
             $("phText").textContent = "O anfitrião te expulsou.";
@@ -1291,20 +1412,30 @@ function startViewer(name, code) {
           failJoin("O anfitrião não conseguiu confirmar sua conta. Saia da conta, entre de novo e tente outra vez.");
           break;
         case "full": failJoin("A sala está cheia."); break;
-        case "users": if (Array.isArray(d.list)) renderUsers(d.list.map(u => ({ id: u.id, name: cleanName(u.name), host: !!u.host, admin: !!u.admin }))); break;
+        case "users":
+          if (!Array.isArray(d.list)) break;
+          S.users = d.list.map(u => ({ id: String(u.id), name: cleanName(u.name), host: !!u.host, admin: !!u.admin }));
+          renderUsers(S.users);
+          if (S.inCall && !isMember(S.inCall.peer)) { closeIn(); if (!S.stream) waitingScreen(); }
+          syncOutgoing();   // se eu estou transmitindo, ligo para quem acabou de entrar
+          break;
         case "banned":
           failJoin("Sua conta foi banida pelo administrador.");
           break;
         case "chat": addChat({ name: cleanName(d.name), text: String(d.text || ""), ts: d.ts || Date.now() }); break;
         case "sys": sysMsg(String(d.text || "")); break;
         case "react": showReaction(d.e, cleanName(d.name)); break;
-        case "live": setLive(!!d.on); if (!d.on) waitingScreen(); break;
+        case "presentBusy": stopLocal(); toast(`${cleanName(d.name)} já está transmitindo. Espere parar para começar a sua.`, 5000); break;
+        case "presenter": { const prev = S.presenter; S.presenter = cleanPresenter(d.p); onPresenter(prev); break; }
       }
     });
     conn.on("close", () => { if (!S.leaving) hostGone(); });
   }
 }
 
+function cleanPresenter(p) {
+  return p && typeof p === "object" && typeof p.id === "string" ? { id: p.id, name: cleanName(p.name) } : null;
+}
 function showRemote(stream) {
   const vid = $("video");
   vid.srcObject = stream; vid.muted = false; vid.volume = +$("vol").value;
@@ -1317,12 +1448,14 @@ function showRemote(stream) {
 function waitingScreen() {
   $("video").srcObject = null;
   $("placeholder").classList.remove("hidden");
-  $("phTitle").textContent = "Aguardando transmissão…";
-  $("phText").textContent = `${S.hostName || "O anfitrião"} ainda não está transmitindo.`;
+  const p = S.presenter && S.presenter.id !== S.peer?.id ? S.presenter : null;
+  $("phTitle").textContent = p ? `Conectando à tela de ${p.name}…` : "Aguardando transmissão…";
+  $("phText").textContent = p ? "O vídeo aparece em alguns segundos." : "Ninguém está transmitindo agora. Qualquer pessoa da sala pode clicar em “Iniciar transmissão”.";
   $("clickToPlay").classList.add("hidden");
   $("stats").classList.add("hidden");
 }
 function hostGone() {
+  stopLocal(); closeIn(); S.presenter = null; updateShareBtn();
   waitingScreen(); setLive(false);
   $("phTitle").textContent = "O anfitrião saiu";
   $("phText").textContent = "A sala foi encerrada. Clique em “Sair” para voltar.";
@@ -1351,6 +1484,7 @@ function startStats() {
 async function leave() {
   S.leaving = true;
   if (S.role === "host") { stopShare(); broadcast({ t: "sys", text: "O anfitrião encerrou a sala." }); }
+  else stopLocal();
   await Promise.race([setPresence(), new Promise(r => setTimeout(r, 1500))]);   // tira a sala do seu status
   try { S.peer?.destroy(); } catch {}
   location.href = location.href.split("#")[0];
