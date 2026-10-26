@@ -136,6 +136,33 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
 .inv p{margin:0 0 10px;color:var(--muted);font-size:13px}
 .inv .row button{flex:1}
 @keyframes pop{from{transform:translateY(20px);opacity:0}}
+/* Conversa com amigo */
+#friendView{display:flex;flex-direction:column;height:calc(100vh - 64px);min-height:420px}
+#friendView .fcard{padding:16px 20px;gap:14px}
+#friendView .av.huge{width:56px;height:56px;font-size:24px}
+#friendView .hello{font-size:22px}
+#friendView .factions{margin-top:12px}
+#friendView .factions button{padding:9px 14px}
+#fvHint{margin:8px 0 12px!important;font-size:13px}
+.dm{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--panel);border-radius:14px;overflow:hidden}
+#dmList{flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:2px}
+#dmList .dmEmpty{margin:auto;color:var(--muted);text-align:center}
+.dmMsg{display:flex;gap:10px;padding:4px 0;max-width:100%}
+.dmMsg .av{width:34px;height:34px;margin-top:2px}
+.dmMsg.cont{padding-top:0}
+.dmMsg.cont .av{visibility:hidden;height:0}
+.dmMsg .body{min-width:0;flex:1}
+.dmMsg .head{display:flex;align-items:baseline;gap:8px}
+.dmMsg .head b{font-weight:700}
+.dmMsg .head small{color:var(--muted);font-size:11px}
+.dmMsg .txt{white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}
+.dmDay{align-self:center;font-size:11px;color:var(--muted);margin:10px 0 4px;text-transform:uppercase}
+#dmForm{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}
+#dmForm input{flex:1}
+#dmErr{color:#ff8a8d;font-size:13px;padding:0 14px}
+#dmErr:empty{display:none}
+.flist .unread{margin-left:auto;background:var(--danger);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;flex:none}
+.flist li.hasUnread .fi b{color:#fff}
 @media (max-width:760px){
   #home{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   .side{flex-direction:row;flex-wrap:wrap;align-items:center;padding:10px}
@@ -349,6 +376,14 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
         <button id="fvRemove" type="button">Remover amigo</button>
       </div>
       <p class="sub" id="fvHint" style="margin-top:12px"></p>
+      <div class="dm">
+        <div id="dmList"></div>
+        <div id="dmErr"></div>
+        <form id="dmForm" autocomplete="off">
+          <input id="dmIn" maxlength="1000" placeholder="Mensagem…">
+          <button class="primary">Enviar</button>
+        </form>
+      </div>
     </div>
 
     <div id="roomView" class="hidden roomwrap"></div>
@@ -603,7 +638,7 @@ function showView(id) {
   for (const v of VIEWS) $(v).classList.toggle("hidden", v !== id);
   document.querySelector(".main").classList.toggle("flush", id === "roomView");
   document.querySelectorAll(".side .nav[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === id));
-  if (id !== "friendView") { F.selected = null; renderSideFriends(); }
+  if (id !== "friendView") { F.selected = null; closeDm(); renderSideFriends(); }
 }
 document.querySelectorAll(".side .nav[data-view]").forEach(b => b.onclick = () => { $("gearMenu").classList.add("hidden"); $("meGear").classList.remove("open"); showView(b.dataset.view); });
 function isAdmin(uid) { return !!uid && uid === ADMIN_UID; }
@@ -751,6 +786,9 @@ const F = {
   selected: null,
   invCards: new Map(),
   hb: null,
+  dmUid: null, dmUnsub: null,   // conversa aberta
+  lastUnsub: new Map(),         // uid do amigo -> escuta da última mensagem
+  unread: new Map(),            // uid do amigo -> quantas mensagens novas
 };
 const ONLINE_MS = 150_000;
 const INVITE_TTL = 10 * 60_000;
@@ -772,7 +810,7 @@ async function startSocial() {
   try { await ensureProfile(); } catch (e) { console.warn(e); friendsErr("Não consegui criar seu perfil: " + permMsg(e)); }
   db.collection("friends").where("uids", "array-contains", S.uid).onSnapshot(snap => {
     F.pairs = new Map(snap.docs.map(d => [d.id, d.data()]));
-    syncPresenceSubs(); renderFriends();
+    syncPresenceSubs(); syncDmWatch(); renderFriends();
   }, e => friendsErr("Lista de amigos: " + permMsg(e)));
   db.collection("invites").where("to", "==", S.uid).onSnapshot(snap => {
     snap.docChanges().forEach(ch => ch.type === "removed" ? dropInviteCard(ch.doc.id) : showInvite(ch.doc));
@@ -862,6 +900,8 @@ function friendLi(f, opts = {}) {
   fi.append(b, sm);
   li.append(avatarEl(f.name, opts.sub == null ? f.state : null), fi);
   for (const btn of opts.buttons || []) li.append(btn);
+  const n = opts.sub == null ? F.unread.get(f.uid) : 0;
+  if (n) { const u = document.createElement("b"); u.className = "unread"; u.textContent = n > 9 ? "9+" : n; li.append(u); li.classList.add("hasUnread"); }
   if (opts.click !== false) li.onclick = e => { if (!e.target.closest("button")) openFriend(f.uid); };
   return li;
 }
@@ -934,7 +974,7 @@ $("addFriendForm").onsubmit = async e => {
 };
 
 /* ---- Tela do amigo selecionado ---- */
-function openFriend(uid) { F.selected = uid; renderFriendView(); showView("friendView"); F.selected = uid; renderSideFriends(); }
+function openFriend(uid) { F.selected = uid; renderFriendView(); showView("friendView"); F.selected = uid; openDm(uid); renderSideFriends(); }
 function renderFriendView() {
   const uid = F.selected; if (!uid) return;
   const pair = F.pairs.get(pairIdOf(S.uid, uid));
@@ -987,6 +1027,94 @@ function joinRoom(code) {
   if (!checkLib()) return;
   startViewer(S.name, code);
 }
+
+/* ---- Mensagens diretas (ficam salvas no Firestore, só os dois leem) ---- */
+function readKey(uid) { return `cinesala-lido-${S.uid}-${uid}`; }
+function msgTime(d) { const t = d.at?.toMillis ? d.at.toMillis() : null; return t ?? Date.now(); }
+function dmVisible(uid) { return F.dmUid === uid && !$("friendView").classList.contains("hidden") && !document.hidden; }
+function markRead(uid, at) {
+  store.set(readKey(uid), String(Math.max(at || Date.now(), +store.get(readKey(uid)) || 0)));
+  if (F.unread.delete(uid)) { renderSideFriends(); renderFriends(); }
+}
+/* Fica de olho na última mensagem de cada amigo para avisar mensagem nova */
+function syncDmWatch() {
+  const want = new Map([...F.pairs].filter(([, p]) => p.status === "accepted").map(([id, p]) => [otherOf(p), id]));
+  for (const [uid, un] of F.lastUnsub) if (!want.has(uid)) { un(); F.lastUnsub.delete(uid); F.unread.delete(uid); }
+  for (const [uid, pid] of want) if (!F.lastUnsub.has(uid)) {
+    let first = true;
+    F.lastUnsub.set(uid, db.collection("friends").doc(pid).collection("messages").orderBy("at", "desc").limit(20)
+      .onSnapshot(snap => {
+        const read = +store.get(readKey(uid)) || 0;
+        const fresh = snap.docs.map(d => d.data({ serverTimestamps: "estimate" })).filter(m => m.from !== S.uid && msgTime(m) > read);
+        if (dmVisible(uid)) { if (fresh.length) markRead(uid, msgTime(fresh[0])); }
+        else {
+          const before = F.unread.get(uid) || 0;
+          if (fresh.length) F.unread.set(uid, fresh.length); else F.unread.delete(uid);
+          if (!first && fresh.length > before) {
+            beep(); toast(`💬 ${friendInfo(uid).name}: ${String(fresh[0].text || "").slice(0, 80)}`, 5000);
+          }
+          renderSideFriends(); renderFriends();
+        }
+        first = false;
+      }, e => console.warn("mensagens", e)));
+  }
+}
+function closeDm() { F.dmUnsub?.(); F.dmUnsub = null; F.dmUid = null; }
+function openDm(uid) {
+  if (F.dmUid === uid && F.dmUnsub) return;
+  closeDm();
+  F.dmUid = uid;
+  const list = $("dmList"); list.textContent = ""; $("dmErr").textContent = ""; $("dmIn").value = "";
+  const pid = pairIdOf(S.uid, uid);
+  F.dmUnsub = db.collection("friends").doc(pid).collection("messages").orderBy("at", "desc").limit(150)
+    .onSnapshot(snap => {
+      renderDm(uid, snap.docs.map(d => d.data({ serverTimestamps: "estimate" })).reverse());
+      if (dmVisible(uid)) markRead(uid, Date.now());
+    }, e => { $("dmErr").textContent = "Não consegui abrir a conversa: " + permMsg(e); });
+  setTimeout(() => $("dmIn").focus(), 50);
+}
+function renderDm(uid, msgs) {
+  const list = $("dmList");
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+  list.textContent = "";
+  if (!msgs.length) {
+    const e = document.createElement("div"); e.className = "dmEmpty";
+    e.textContent = `Este é o começo da sua conversa com ${friendInfo(uid).name}. Diga oi! 👋`;
+    list.append(e); return;
+  }
+  let prev = null;
+  for (const m of msgs) {
+    const t = msgTime(m), day = new Date(t).toLocaleDateString("pt-BR");
+    if (!prev || new Date(msgTime(prev)).toLocaleDateString("pt-BR") !== day) {
+      const d = document.createElement("div"); d.className = "dmDay";
+      d.textContent = day === new Date().toLocaleDateString("pt-BR") ? "Hoje" : day; list.append(d); prev = null;
+    }
+    const mine = m.from === S.uid, name = mine ? S.name : friendInfo(uid).name;
+    const row = document.createElement("div"); row.className = "dmMsg";
+    if (prev && prev.from === m.from && t - msgTime(prev) < 5 * 60_000) row.classList.add("cont");
+    const av = document.createElement("span"); av.className = "av"; av.style.background = colorFor(name); av.textContent = name[0].toUpperCase();
+    const body = document.createElement("div"); body.className = "body";
+    if (!row.classList.contains("cont")) {
+      const head = document.createElement("div"); head.className = "head";
+      const b = document.createElement("b"); b.textContent = name; b.style.color = colorFor(name);
+      const sm = document.createElement("small"); sm.textContent = timeStr(t);
+      head.append(b, sm); body.append(head);
+    }
+    const txt = document.createElement("div"); txt.className = "txt"; txt.textContent = String(m.text || "");
+    body.append(txt); row.append(av, body); list.append(row);
+    prev = m;
+  }
+  if (atBottom || msgs[msgs.length - 1].from === S.uid) list.scrollTop = list.scrollHeight;
+}
+$("dmForm").onsubmit = e => {
+  e.preventDefault();
+  const uid = F.dmUid, text = $("dmIn").value.trim().slice(0, 1000);
+  if (!uid || !text) return;
+  $("dmIn").value = "";
+  db.collection("friends").doc(pairIdOf(S.uid, uid)).collection("messages").add({ from: S.uid, text, at: ts() })
+    .catch(er => { $("dmErr").textContent = "Mensagem não enviada: " + permMsg(er); $("dmIn").value = text; });
+};
+document.addEventListener("visibilitychange", () => { if (F.dmUid && dmVisible(F.dmUid)) markRead(F.dmUid, Date.now()); });
 
 /* Convites que chegam pra você */
 function beep() {
