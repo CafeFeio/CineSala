@@ -55,14 +55,40 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
 .me button{padding:6px 10px;font-size:13px}
 .tag.admin{background:var(--warn);color:#1e1f22}
 /* App (depois do login) */
-#home{height:100%;display:grid;grid-template-columns:240px 1fr}
+#home{height:100%;display:grid;grid-template-columns:260px 1fr}
 .side{background:var(--panel);display:flex;flex-direction:column;gap:4px;padding:16px 10px;min-height:0}
 .logo.sm{font-size:22px;padding:0 8px 14px}
 .nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;color:var(--muted)}
 .nav:hover{background:var(--panel2);color:var(--text)}
 .nav.on{background:var(--panel2);color:var(--text);font-weight:700}
 #adminBtn.nav{color:var(--warn)}
-.side .me{margin:8px 0 4px}
+.side .me{margin:4px 0 0;gap:6px;padding:8px}
+.me .avw{position:relative;flex:none}
+.me .avw .dot{position:absolute;right:-2px;bottom:-2px;border:3px solid var(--bg);width:14px;height:14px}
+.me b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me small.voz{color:var(--ok)}
+.me small.live{color:#ff8a8d;font-weight:700}
+.ibtn{width:28px;height:30px;padding:0;display:grid;place-items:center;background:transparent;border-radius:6px;font-size:16px;flex:none;position:relative}
+.ibtn:hover{background:var(--panel2)}
+.ibtn.off{color:#ff8a8d}
+.ibtn.off:after{content:"";position:absolute;left:6px;right:6px;top:50%;height:2px;background:var(--danger);transform:rotate(-45deg);border-radius:2px}
+.ibtn.idle{opacity:.55}
+.ibtn.open{background:var(--panel2)}
+.callcard{background:var(--bg);border-radius:10px;padding:10px;margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.cc-top{display:flex;align-items:center;gap:8px}
+.cc-ico{font-size:18px;flex:none}
+.cc-txt{flex:1;min-width:0}
+.cc-txt b{display:block;font-size:14px;color:var(--ok)}
+.cc-txt b.live{color:#ff8a8d}
+.cc-txt small{display:block;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ccHang{color:var(--danger);font-size:18px}
+#ccHang:hover{background:var(--danger);color:#fff}
+#ccShare{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--panel2);padding:8px;font-size:14px}
+#ccShare:hover:not(:disabled){background:var(--line)}
+#ccShare.on{background:var(--danger);color:#fff}
+#ccShare:disabled{opacity:.6;cursor:not-allowed}
+.gearmenu{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px;margin-top:8px;display:flex;flex-direction:column;gap:2px}
+.gearmenu .nav{padding:9px 10px}
 .main{overflow:auto;padding:32px 28px;min-width:0}
 .view{max-width:860px;margin:0 auto}
 .hello{font-size:28px;margin:0 0 4px}
@@ -116,7 +142,14 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
   .logo.sm{padding:0 8px 0 4px;font-size:18px}
   .nav{width:auto}
   .nav span{display:none}
-  .side .me,.sideHead,#sideFriends{display:none}
+  .sideHead,#sideFriends{display:none}
+  .side .me{margin:0;padding:4px;background:none}
+  .side .me > div,.side .me .avw{display:none}
+  .callcard{flex-direction:row;align-items:center;margin:0;padding:4px 6px}
+  .cc-txt{display:none}
+  #ccShare{width:auto;padding:6px 10px}
+  #ccShare span{display:none}
+  .gearmenu{position:fixed;right:10px;top:56px;z-index:20;margin:0;box-shadow:0 10px 30px #000a}
   .side .spacer{flex:1}
   .nav .badge,.nav .dot{margin-left:2px}
   .fcard{padding:16px}
@@ -231,12 +264,28 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
     <button class="nav on" data-view="homeView" type="button">🏠 <span>Início</span></button>
     <button class="nav" data-view="friendsView" type="button">👥 <span>Amigos</span><b class="badge hidden" id="reqBadge">0</b></button>
     <button class="nav hidden" id="roomNav" data-view="roomView" type="button">📡 <span>Sala atual</span><i class="dot live" id="roomNavDot"></i></button>
-    <button class="nav hidden" id="adminBtn" data-view="adminView" type="button">🛡️ <span>Painel de admin</span></button>
     <div class="sideHead">Amigos</div>
     <ul id="sideFriends" class="flist"></ul>
     <span class="spacer"></span>
-    <div class="me"><span class="av" id="meAv">?</span><div><b id="meName">—</b><small id="meEmail"></small></div></div>
-    <button id="logoutBtn" type="button" class="nav">↩ <span>Sair da conta</span></button>
+    <div id="callCard" class="callcard hidden">
+      <div class="cc-top">
+        <span class="cc-ico" id="ccIco">📶</span>
+        <div class="cc-txt"><b id="ccTitle">Conectado</b><small id="ccSub"></small></div>
+        <button id="ccHang" class="ibtn" type="button" title="Sair da sala">📞</button>
+      </div>
+      <button id="ccShare" type="button">🖥️ <span>Transmitir</span></button>
+    </div>
+    <div id="gearMenu" class="gearmenu hidden">
+      <button class="nav hidden" id="adminBtn" data-view="adminView" type="button">🛡️ <span>Painel de admin</span></button>
+      <button id="logoutBtn" type="button" class="nav">↩ <span>Sair da conta</span></button>
+    </div>
+    <div class="me">
+      <span class="avw"><span class="av" id="meAv">?</span><i class="dot on" id="meDot"></i></span>
+      <div><b id="meName">—</b><small id="meStatus">Online</small></div>
+      <button id="meMic" class="ibtn idle" type="button" title="Entrar no chat de voz">🎤</button>
+      <button id="meDeaf" class="ibtn" type="button" title="Silenciar a voz de todos">🎧</button>
+      <button id="meGear" class="ibtn" type="button" title="Configurações">⚙️</button>
+    </div>
   </nav>
 
   <main class="main">
@@ -501,6 +550,7 @@ const V = {
   talk: new Map(),     // peerId -> analisador (quem está falando)
   talking: new Set(),
   volOpen: null,       // de quem está aberto o ajuste de volume
+  deaf: false,         // não ouvir ninguém da voz
 };
 
 /* ---------- Login (Firebase Auth) ---------- */
@@ -534,7 +584,7 @@ function showPanel(which) {
 /* Logou → vai direto para dentro do app */
 function showLobby(u) {
   S.name = accountName(u); S.uid = u.uid;
-  $("meName").textContent = S.name; $("meEmail").textContent = u.email || "";
+  $("meName").textContent = S.name;
   $("helloName").textContent = S.name;
   $("meAv").textContent = S.name[0].toUpperCase(); $("meAv").style.background = colorFor(S.name);
   const admin = isAdmin(u.uid);
@@ -555,7 +605,7 @@ function showView(id) {
   document.querySelectorAll(".side .nav[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === id));
   if (id !== "friendView") { F.selected = null; renderSideFriends(); }
 }
-document.querySelectorAll(".side .nav[data-view]").forEach(b => b.onclick = () => showView(b.dataset.view));
+document.querySelectorAll(".side .nav[data-view]").forEach(b => b.onclick = () => { $("gearMenu").classList.add("hidden"); $("meGear").classList.remove("open"); showView(b.dataset.view); });
 function isAdmin(uid) { return !!uid && uid === ADMIN_UID; }
 
 let signupMode = false;
@@ -1089,10 +1139,58 @@ function showReaction(e, name) {
   const s = document.createElement("small"); s.textContent = name; f.append(s);
   $("reactLayer").append(f); setTimeout(() => f.remove(), 2700);
 }
+/* Painel de baixo da lateral (estilo Discord) */
+function updateSide() {
+  const inRoom = !!S.role && !S.leaving;
+  $("callCard").classList.toggle("hidden", !inRoom);
+  const live = !!S.stream;
+  if (inRoom) {
+    $("ccIco").textContent = live ? "🔴" : V.on ? "📶" : "📺";
+    $("ccTitle").textContent = live ? "Transmitindo" : V.on ? "Voz conectada" : "Na sala";
+    $("ccTitle").classList.toggle("live", live);
+    $("ccSub").textContent = (S.role === "host" ? "Sua sala" : `Sala de ${S.hostName || "…"}`) + " · " + S.code;
+    const b = $("shareBtn"), c = $("ccShare");
+    c.disabled = b.disabled; c.title = b.title || b.textContent.replace(/^\S+\s/, "");
+    c.classList.toggle("on", b.classList.contains("danger"));
+    c.lastChild.textContent = live ? "Parar" : b.classList.contains("danger") ? "Encerrar a de " + (S.presenter?.name || "") : b.disabled ? (S.presenter?.name || "") + " transmitindo" : "Transmitir";
+  }
+  $("meStatus").textContent = live ? "🔴 Ao vivo" : V.on ? "Em voz" : inRoom ? "Na sala" : "Online";
+  $("meStatus").className = live ? "live" : V.on ? "voz" : "";
+  $("meDot").className = "dot " + (live ? "live" : "on");
+  const mic = $("meMic");
+  mic.classList.toggle("idle", !V.on); mic.classList.toggle("off", V.on && V.muted);
+  mic.title = !V.on ? (inRoom ? "Entrar no chat de voz" : "Entre numa sala para usar a voz") : V.muted ? "Desmutar microfone" : "Mutar microfone";
+  $("meDeaf").classList.toggle("off", V.deaf);
+  $("meDeaf").title = V.deaf ? "Voltar a ouvir as vozes" : "Silenciar a voz de todos";
+}
+$("ccShare").onclick = () => $("shareBtn").click();
+$("ccHang").onclick = () => {
+  if (!S.role) return;
+  if (confirm(S.role === "host" ? "Encerrar a sala para todo mundo?" : "Sair da sala?")) leave();
+};
+$("meMic").onclick = () => {
+  if (!S.role) return toast("Entre numa sala para usar o chat de voz.");
+  if (!V.on) joinVoice(); else toggleMute();
+};
+$("meDeaf").onclick = () => {
+  V.deaf = !V.deaf;
+  for (const id of V.calls.keys()) applyVol(id);
+  toast(V.deaf ? "🎧 Vozes silenciadas (a transmissão continua com som)." : "🎧 Você voltou a ouvir as vozes.");
+  updateSide();
+};
+$("meGear").onclick = e => {
+  e.stopPropagation();
+  const open = $("gearMenu").classList.toggle("hidden") === false;
+  $("meGear").classList.toggle("open", open);
+};
+document.addEventListener("click", e => {
+  if (!e.target.closest("#gearMenu") && !$("gearMenu").classList.contains("hidden")) { $("gearMenu").classList.add("hidden"); $("meGear").classList.remove("open"); }
+});
+
 function setLive(on) {
   const p = $("livePill"); p.textContent = on ? "● AO VIVO" : "Offline"; p.classList.toggle("live", on);
   $("roomNavDot").className = "dot " + (on ? "live" : "on");
-  setPresence();
+  setPresence(); updateSide();
 }
 
 $("chatForm").onsubmit = e => {
@@ -1342,6 +1440,7 @@ function updateShareBtn() {
   b.className = S.stream || hostStops ? "danger" : "ok";
   b.disabled = !!other && !hostStops;
   b.title = other && !hostStops ? "Só uma pessoa transmite por vez. Espere ela parar." : "";
+  updateSide();
 }
 
 async function startShare() {
@@ -1658,6 +1757,7 @@ function voiceUi() {
   for (const id of ["micBtn", "voiceLeave", "micSel"]) $(id).classList.toggle("hidden", !V.on);
   $("micBtn").textContent = V.muted ? "🔇 Desmutar" : "🎤 Mutar";
   $("micBtn").classList.toggle("muted", V.muted);
+  updateSide();
 }
 async function fillMics() {
   const sel = $("micSel");
@@ -1726,7 +1826,8 @@ function applyVol(id) {
   const u = S.users.find(x => x.id === id);
   const v = u ? getVol(u.name) : 1;
   try { e.gain.disconnect(); } catch {}
-  if (v <= 1) { e.el.muted = false; e.el.volume = v; }
+  if (V.deaf) { e.el.muted = true; }
+  else if (v <= 1) { e.el.muted = false; e.el.volume = v; }
   else { e.el.muted = true; e.gain.gain.value = v; e.gain.connect(audioCtx().destination); }
 }
 function dropVoice(id) {
