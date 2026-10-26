@@ -81,8 +81,10 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
 .cc-txt b{display:block;font-size:14px;color:var(--ok)}
 .cc-txt b.live{color:#ff8a8d}
 .cc-txt small{display:block;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#ccHang{color:var(--danger);font-size:18px}
-#ccHang:hover{background:var(--danger);color:#fff}
+#ccHang{font-size:16px;width:34px;height:34px;border-radius:50%;background:#da373c40}
+#ccHang:hover{background:var(--danger)}
+#ccHang.join{background:#23a55a40}
+#ccHang.join:hover{background:var(--ok)}
 #ccShare{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--panel2);padding:8px;font-size:14px}
 #ccShare:hover:not(:disabled){background:var(--line)}
 #ccShare.on{background:var(--danger);color:#fff}
@@ -334,7 +336,7 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
       <div class="cc-top">
         <span class="cc-ico" id="ccIco">📶</span>
         <div class="cc-txt"><b id="ccTitle">Conectado</b><small id="ccSub"></small></div>
-        <button id="ccHang" class="ibtn hidden" type="button" title="Sair da voz">📞</button>
+        <button id="ccHang" class="ibtn" type="button" title="Entrar na voz">📞</button>
       </div>
       <button id="ccShare" type="button">🖥️ <span>Transmitir</span></button>
     </div>
@@ -486,8 +488,7 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
   </div>
 
   <aside>
-    <h3>Chat de voz</h3>
-    <div id="voiceBar">
+    <div id="voiceBar" class="hidden">
       <button id="voiceJoin" class="ok" type="button">🎙️ Entrar na voz</button>
       <button id="micBtn" class="hidden" type="button">🎤 Mutar</button>
       <button id="voiceLeave" class="hidden danger" type="button" title="Sair do chat de voz">📞 Sair da voz</button>
@@ -1371,7 +1372,7 @@ function updateSide() {
   $("meDeaf").title = V.deaf ? "Voltar a ouvir as vozes" : "Silenciar a voz de todos";
 }
 $("ccShare").onclick = () => $("shareBtn").click();
-$("ccHang").onclick = () => { if (V.on) { leaveVoice(); sysMsg("Você saiu do chat de voz."); } };
+$("ccHang").onclick = () => { if (V.on) { leaveVoice(); sysMsg("Você saiu do chat de voz."); } else joinVoice(); };
 $("meMic").onclick = () => {
   if (!S.role) return toast("Entre numa sala para usar o chat de voz.");
   if (!V.on) joinVoice(); else toggleMute();
@@ -1959,7 +1960,8 @@ function toggleMute() {
 function voiceUi() {
   $("voiceJoin").classList.toggle("hidden", V.on);
   for (const id of ["micBtn", "voiceLeave"]) $(id).classList.toggle("hidden", !V.on);
-  $("ccHang").classList.toggle("hidden", !V.on);
+  $("ccHang").classList.toggle("join", !V.on);
+  $("ccHang").title = V.on ? "Sair da voz" : "Entrar na voz";
   $("micBtn").textContent = V.muted ? "🔇 Desmutar" : "🎤 Mutar";
   $("micBtn").classList.toggle("muted", V.muted);
   updateSide();
