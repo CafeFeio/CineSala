@@ -160,6 +160,18 @@ aside h3{margin:0;padding:12px 14px 6px;font-size:12px;text-transform:uppercase;
 .tag{font-size:10px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:4px;margin-left:auto}
 .kick{margin-left:auto;font-size:12px;padding:4px 8px;background:transparent;color:#ff8a8d;border:1px solid #da373c66}
 .kick:hover{background:var(--danger);color:#fff}
+#voiceBar{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 6px}
+#voiceBar button{padding:7px 10px;font-size:13px}
+#micBtn.muted{background:var(--danger);color:#fff}
+#micSel{flex:1 1 100%;padding:6px 8px;font-size:13px}
+#users li.clickable{cursor:pointer}
+#users li.clickable:hover{background:var(--panel2)}
+#users .vi{font-size:12px}
+#users .av{transition:box-shadow .15s}
+#users .av.talk{box-shadow:0 0 0 2px var(--panel),0 0 0 4px #23a55a}
+#users li.uvol{padding:0 6px 8px 42px;gap:8px;font-size:12px;color:var(--muted)}
+#users li.uvol input{flex:1;padding:0}
+#users li.uvol b{min-width:38px;text-align:right;color:var(--text,#fff)}
 #chat{flex:1;overflow:auto;padding:8px 14px;border-top:1px solid var(--line)}
 .msg{margin:6px 0;word-wrap:break-word}
 .msg .who{font-weight:700;margin-right:6px}
@@ -332,6 +344,13 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
   </div>
 
   <aside>
+    <h3>Chat de voz</h3>
+    <div id="voiceBar">
+      <button id="voiceJoin" class="ok" type="button">🎙️ Entrar na voz</button>
+      <button id="micBtn" class="hidden" type="button">🎤 Mutar</button>
+      <button id="voiceLeave" class="hidden danger" type="button" title="Sair do chat de voz">📞 Sair da voz</button>
+      <select id="micSel" class="hidden" title="Microfone"></select>
+    </div>
     <h3>Na sala</h3>
     <ul id="users"></ul>
     <h3>Chat</h3>
@@ -356,7 +375,7 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
       <button>😂</button><button>😱</button><button>❤️</button><button>👏</button><button>🍿</button><button>💀</button>
     </span>
     <span class="spacer"></span>
-    <span id="volWrap" style="display:flex;align-items:center;gap:6px">🔊<input type="range" id="vol" min="0" max="1" step="0.01" value="1"></span>
+    <span id="volWrap" style="display:flex;align-items:center;gap:6px" title="Volume da transmissão">🎬🔊<input type="range" id="vol" min="0" max="1" step="0.01" value="1"></span>
     <button id="fsBtn">⛶ Tela cheia</button>
   </footer>
 </section>
@@ -473,6 +492,15 @@ const S = {
   inCall: null,        // chamada que estou recebendo (de quem está transmitindo)
   statsTimer: null,
   leaving: false,
+};
+
+/* Chat de voz */
+const V = {
+  on: false, muted: false, mic: null, ac: null,
+  calls: new Map(),    // peerId -> { call, stream, el, src, gain }
+  talk: new Map(),     // peerId -> analisador (quem está falando)
+  talking: new Set(),
+  volOpen: null,       // de quem está aberto o ajuste de volume
 };
 
 /* ---------- Login (Firebase Auth) ---------- */
@@ -1008,11 +1036,17 @@ $("playBtn").onclick = () => { $("video").play().then(() => $("clickToPlay").cla
 function renderUsers(list) {
   const ul = $("users"); ul.textContent = "";
   for (const u of list) {
-    const li = document.createElement("li");
+    const li = document.createElement("li"); li.dataset.pid = u.id;
     const av = document.createElement("span"); av.className = "av"; av.style.background = colorFor(u.name);
     av.textContent = u.name[0].toUpperCase();
-    const nm = document.createElement("span"); nm.textContent = u.name + (u.id === (S.peer && S.peer.id) ? " (você)" : "");
+    const me = u.id === (S.peer && S.peer.id);
+    const nm = document.createElement("span"); nm.textContent = u.name + (me ? " (você)" : "");
     li.append(av, nm);
+    if (u.voice) { const vi = document.createElement("span"); vi.className = "vi"; vi.textContent = u.muted ? "🔇" : "🎙️"; vi.title = u.muted ? "Mutado" : "No chat de voz"; li.append(vi); }
+    if (u.voice && !me) {   // clicar na pessoa abre o volume só dela
+      li.classList.add("clickable"); li.title = "Clique para ajustar o volume desta pessoa";
+      li.onclick = e => { if (e.target.closest("button")) return; V.volOpen = V.volOpen === u.id ? null : u.id; renderUsers(list); };
+    }
     if (u.admin) { const t = document.createElement("span"); t.className = "tag admin"; t.textContent = "ADMIN"; li.append(t); }
     if (u.host) { const t = document.createElement("span"); t.className = "tag"; t.textContent = "ANFITRIÃO"; if (u.admin) t.style.marginLeft = "4px"; li.append(t); }
     else if (S.role === "host" && !u.admin) {
@@ -1021,6 +1055,14 @@ function renderUsers(list) {
       li.append(k);
     }
     ul.append(li);
+    if (u.voice && !me && V.volOpen === u.id) {
+      const row = document.createElement("li"); row.className = "uvol";
+      const r = document.createElement("input"); r.type = "range"; r.min = "0"; r.max = "2"; r.step = "0.05"; r.value = getVol(u.name);
+      const pct = document.createElement("b"); pct.textContent = Math.round(r.value * 100) + "%";
+      r.oninput = () => { store.set(volKey(u.name), r.value); pct.textContent = Math.round(r.value * 100) + "%"; applyVol(u.id); };
+      row.append(document.createTextNode("🔊"), r, pct);
+      ul.append(row);
+    }
   }
   const n = list.filter(u => !u.host).length;
   $("countPill").textContent = `${n} assistindo`;
@@ -1094,14 +1136,27 @@ function startHost(name, attempt = 0, onOpen = null) {
   peer.on("call", onIncomingCall);
   peer.on("connection", conn => {
     conn.on("data", d => hostOnData(conn, d));
-    conn.on("close", () => hostDropViewer(conn.peer));
-    conn.on("error", () => hostDropViewer(conn.peer));
+    conn.on("close", () => hostDropViewer(conn.peer, conn));
+    conn.on("error", () => hostDropViewer(conn.peer, conn));
   });
 }
 
+/* Batimento: a cada 5 s o anfitrião manda "ping". Quem some por 60 s sai da lista
+   (assim o anfitrião não fica vendo alguém que já caiu). */
+setInterval(() => {
+  if (S.role !== "host" || !S.peer?.open) return;
+  const now = Date.now();
+  for (const [id, v] of S.viewers) {
+    if (now - (v.seen || now) > 60_000) { try { v.conn.close(); } catch {} hostDropViewer(id, v.conn); }
+    else if (v.conn.open) try { v.conn.send({ t: "ping" }); } catch {}
+  }
+}, 5000);
+
 function hostOnData(conn, d) {
   if (!d || typeof d !== "object") return;
-  const v = S.viewers.get(conn.peer);
+  let v = S.viewers.get(conn.peer);
+  if (v && v.conn !== conn) v = null;   // mensagem de uma conexão antiga desta pessoa
+  else if (v) v.seen = Date.now();
   if (d.t === "hello") {
     if (v || conn._checking) return;
     conn._checking = true;
@@ -1113,21 +1168,28 @@ function hostOnData(conn, d) {
       if (await isGloballyBanned(acc.uid)) return reject("banned");               // banido pelo admin
       if (!conn.open) return;
       if (acc.uid === S.uid) return reject("denied");
-      for (const [oid, ov] of S.viewers) if (ov.uid === acc.uid) {   // mesma conta em outra aba: derruba a antiga
-        S.viewers.delete(oid); if (S.presenter?.id === oid) hostSetPresenter(null);
+      const back = S.viewers.get(conn.peer);   // mesma pessoa voltando depois de a conexão cair
+      for (const [oid, ov] of S.viewers) if (ov.uid === acc.uid) {   // mesma conta (outra aba ou conexão antiga): derruba a antiga
+        S.viewers.delete(oid);
+        if (oid !== conn.peer && S.presenter?.id === oid) hostSetPresenter(null);
         try { ov.conn.close(); } catch {}
       }
       if (S.viewers.size >= 8) return reject("full");
-      S.viewers.set(conn.peer, { conn, name: acc.name, uid: acc.uid });
+      S.viewers.set(conn.peer, { conn, name: acc.name, uid: acc.uid, seen: Date.now(), voice: back?.voice, muted: back?.muted });
       conn.send({ t: "welcome", hostName: S.name, presenter: S.presenter });
+      if (back) {   // todos refazem o vídeo e a voz com quem voltou
+        broadcast({ t: "rejoined", id: conn.peer }); resetPeerMedia(conn.peer);
+        if (S.presenter?.id === conn.peer) hostSetPresenter(null);
+      }
       hostSyncUsers();   // quem estiver transmitindo liga para o novo espectador
-      sysMsg(`${acc.name} entrou.`); broadcast({ t: "sys", text: `${acc.name} entrou.` }, conn.peer);
+      if (!back) { sysMsg(`${acc.name} entrou.`); broadcast({ t: "sys", text: `${acc.name} entrou.` }, conn.peer); }
     });
     return;
   }
   if (!v) return;
   if (d.t === "chat") hostBroadcastChat({ t: "chat", name: v.name, text: String(d.text || "").slice(0, 400), ts: Date.now() });
   else if (d.t === "react") { showReaction(d.e, v.name); broadcast({ t: "react", e: d.e, name: v.name }); }
+  else if (d.t === "voice") { v.voice = !!d.on; v.muted = !!d.muted; hostSyncUsers(); }
   else if (d.t === "present") {   // espectador começou/parou de transmitir a tela dele
     if (d.on && S.presenter && S.presenter.id !== conn.peer) { conn.send({ t: "presentBusy", name: S.presenter.name }); return; }
     if (d.on) hostSetPresenter({ id: conn.peer, name: v.name });
@@ -1143,8 +1205,8 @@ function hostSetPresenter(p) {
   onPresenter(prev);
 }
 
-function hostDropViewer(id) {
-  const v = S.viewers.get(id); if (!v) return;
+function hostDropViewer(id, conn) {
+  const v = S.viewers.get(id); if (!v || (conn && v.conn !== conn)) return;
   S.viewers.delete(id);
   hostSyncUsers();
   if (S.presenter?.id === id) hostSetPresenter(null);
@@ -1172,10 +1234,12 @@ function broadcast(msg, exceptId) {
 }
 function hostBroadcastChat(m) { addChat(m); broadcast(m); }
 function hostSyncUsers() {
-  const list = [{ id: S.peer.id, name: S.name, host: true, admin: isAdmin(S.uid) },
-    ...[...S.viewers].map(([id, v]) => ({ id, name: v.name, admin: isAdmin(v.uid) }))];
+  const list = [{ id: S.peer.id, name: S.name, host: true, admin: isAdmin(S.uid), voice: V.on, muted: V.muted },
+    ...[...S.viewers].map(([id, v]) => ({ id, name: v.name, admin: isAdmin(v.uid), voice: !!v.voice, muted: !!v.muted }))];
+  S.users = list;
   renderUsers(list); broadcast({ t: "users", list });
   syncOutgoing();
+  syncVoice();
 }
 
 async function tuneSenders(pc) {
@@ -1227,6 +1291,7 @@ function callPeer(id) {
 
 /* Chamada de vídeo chegando de quem está transmitindo */
 function onIncomingCall(call) {
+  if (call.metadata?.kind === "voice") return onVoiceCall(call);
   if (!isMember(call.peer) && call.peer !== S.presenter?.id) { try { call.close(); } catch {} return; }
   closeIn();
   S.inCall = call;
@@ -1242,6 +1307,12 @@ function onIncomingCall(call) {
 function closeIn() {
   const c = S.inCall; S.inCall = null;
   if (c) try { c.close(); } catch {}
+}
+
+/* Alguém reconectou: as ligações antigas com ele morreram, então refaço */
+function resetPeerMedia(id) {
+  const c = S.out.get(id); if (c) { S.out.delete(id); try { c.close(); } catch {} }
+  dropVoice(id);
 }
 
 /* Mudou quem está transmitindo (todo mundo roda isto) */
@@ -1290,8 +1361,10 @@ async function captureScreen() {
   try {
     return await navigator.mediaDevices.getDisplayMedia({
       video: { width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { ideal: q.fps, max: q.fps } },
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false,
+               restrictOwnAudio: true },   // não manda o chat de voz (o som desta página) junto com a transmissão
       systemAudio: "include",
+      windowAudio: "window",              // compartilhando uma janela: só o som dela (Chrome novo no Windows)
       surfaceSwitching: "include",
       selfBrowserSurface: "exclude",
     });
@@ -1367,16 +1440,45 @@ function startViewer(name, code) {
     $("joinBtn").disabled = false; lobbyError(msg);
     setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
   }
-  peer.on("open", () => connectToHost());
+  let rejoin = 0, rejoinTimer = null, ended = false;
+  S.lastHost = Date.now();
+  /* A conexão com o anfitrião caiu sem ele ter encerrado a sala: tenta voltar sozinho */
+  function lostHost() {
+    if (S.leaving || ended || !entered) return;
+    if (rejoin === 0) {
+      closeIn(); for (const id of [...V.calls.keys()]) dropVoice(id);
+      if (S.stream) stopShare();
+      $("video").srcObject = null; $("placeholder").classList.remove("hidden");
+      $("phTitle").textContent = "Conexão caiu, reconectando…";
+      $("phText").textContent = "Isso costuma levar poucos segundos.";
+      sysMsg("Conexão com o anfitrião caiu. Reconectando…");
+    }
+    if (++rejoin > 10) { hostGone(); return; }
+    clearTimeout(rejoinTimer);
+    rejoinTimer = setTimeout(() => {
+      if (S.leaving || ended) return;
+      try { S.hostConn?.close(); } catch {}
+      if (peer.disconnected && !peer.destroyed) peer.reconnect();
+      connectToHost();
+      rejoinTimer = setTimeout(() => { if (rejoin) lostHost(); }, 8000);   // não respondeu: tenta de novo
+    }, rejoin === 1 ? 500 : 3000);
+  }
+  const watchdog = setInterval(() => {
+    if (S.leaving || ended || peer.destroyed) return clearInterval(watchdog);
+    if (entered && !rejoin && Date.now() - S.lastHost > 45_000) lostHost();   // anfitrião mudo há 45 s
+  }, 4000);
+
+  peer.on("open", () => { if (!entered) connectToHost(); });
   peer.on("error", err => {
     console.warn(err);
     if (err.type === "peer-unavailable") {
-      if (!entered) { failJoin("Sala não encontrada. Confira o código ou se o anfitrião ainda está online."); }
-      else hostGone();
+      if (!entered) { failJoin("Sala não encontrada. Confira o código ou se o anfitrião ainda está online."); return; }
+      // depois de entrar, isso pode ser só uma ligação de vídeo/voz para alguém que saiu
+      if (rejoin && String(err.message || "").includes(PREFIX + code)) lostHost();
       return;
     }
     if (!entered) { failJoin("Falha na conexão: " + err.type); }
-    else toast("Erro de conexão: " + err.type);
+    else console.warn("Erro de conexão: " + err.type);
   });
   peer.on("disconnected", () => { if (!S.leaving) setTimeout(() => !peer.destroyed && peer.reconnect(), 1500); });
   peer.on("call", onIncomingCall);
@@ -1389,18 +1491,28 @@ function startViewer(name, code) {
       catch { failJoin("Sua sessão expirou. Saia da conta e entre de novo."); }
     });
     conn.on("data", d => {
-      if (!d || typeof d !== "object") return;
+      if (!d || typeof d !== "object" || conn !== S.hostConn) return;
+      S.lastHost = Date.now();
       switch (d.t) {
         case "welcome":
+          if (rejoin) {
+            rejoin = 0; clearTimeout(rejoinTimer); sysMsg("Reconectado! ✅");
+            S.presenter = cleanPresenter(d.presenter); onPresenter(null);
+            if (V.on) sendVoiceState();
+            break;
+          }
           entered = true; lobbyError(""); S.hostName = d.hostName; enterRoom();
           sysMsg(`Você entrou na sala de ${d.hostName}.`);
           S.presenter = cleanPresenter(d.presenter); onPresenter(null);
           break;
+        case "ping": conn.send({ t: "pong" }); break;
+        case "end": ended = true; break;
+        case "rejoined": resetPeerMedia(String(d.id)); break;
         case "kicked":
           S.leaving = true;
           if (!entered) { failJoin("Você não pode entrar nesta sala."); }
           else {
-            stopLocal(); closeIn(); S.presenter = null;
+            stopLocal(); closeIn(); S.presenter = null; leaveVoice(true);
             waitingScreen(); setLive(false); renderUsers([]);
             $("phTitle").textContent = "Você foi removido da sala";
             $("phText").textContent = "O anfitrião te expulsou.";
@@ -1414,10 +1526,11 @@ function startViewer(name, code) {
         case "full": failJoin("A sala está cheia."); break;
         case "users":
           if (!Array.isArray(d.list)) break;
-          S.users = d.list.map(u => ({ id: String(u.id), name: cleanName(u.name), host: !!u.host, admin: !!u.admin }));
+          S.users = d.list.map(u => ({ id: String(u.id), name: cleanName(u.name), host: !!u.host, admin: !!u.admin, voice: !!u.voice, muted: !!u.muted }));
           renderUsers(S.users);
           if (S.inCall && !isMember(S.inCall.peer)) { closeIn(); if (!S.stream) waitingScreen(); }
           syncOutgoing();   // se eu estou transmitindo, ligo para quem acabou de entrar
+          syncVoice();
           break;
         case "banned":
           failJoin("Sua conta foi banida pelo administrador.");
@@ -1429,7 +1542,15 @@ function startViewer(name, code) {
         case "presenter": { const prev = S.presenter; S.presenter = cleanPresenter(d.p); onPresenter(prev); break; }
       }
     });
-    conn.on("close", () => { if (!S.leaving) hostGone(); });
+    conn.on("close", () => { if (conn !== S.hostConn || S.leaving) return; if (ended || !entered) hostGone(); else lostHost(); });
+    conn.on("error", () => { if (conn === S.hostConn && entered && !S.leaving) lostHost(); });
+    const pc = conn.peerConnection;   // a rede caiu de verdade (Wi-Fi trocou, etc.)
+    if (pc) pc.addEventListener("iceconnectionstatechange", () => {
+      if (conn !== S.hostConn || !entered) return;
+      if (pc.iceConnectionState === "failed") lostHost();
+      else if (pc.iceConnectionState === "disconnected")
+        setTimeout(() => { if (conn === S.hostConn && pc.iceConnectionState === "disconnected") lostHost(); }, 6000);
+    });
   }
 }
 
@@ -1455,7 +1576,7 @@ function waitingScreen() {
   $("stats").classList.add("hidden");
 }
 function hostGone() {
-  stopLocal(); closeIn(); S.presenter = null; updateShareBtn();
+  stopLocal(); closeIn(); S.presenter = null; updateShareBtn(); leaveVoice(true);
   waitingScreen(); setLive(false);
   $("phTitle").textContent = "O anfitrião saiu";
   $("phText").textContent = "A sala foi encerrada. Clique em “Sair” para voltar.";
@@ -1480,11 +1601,176 @@ function startStats() {
   }, 2000);
 }
 
+/* =====================================================
+   CHAT DE VOZ — quem entra na voz fala com todos que também estão na voz
+   ===================================================== */
+function volKey(name) { return "cinesala-vvol-" + name; }
+function getVol(name) { const v = parseFloat(store.get(volKey(name))); return isFinite(v) ? Math.min(2, Math.max(0, v)) : 1; }
+function audioCtx() {
+  if (!V.ac) V.ac = new (window.AudioContext || window.webkitAudioContext)();
+  if (V.ac.state === "suspended") V.ac.resume().catch(() => {});
+  return V.ac;
+}
+function getMic(deviceId) {
+  return navigator.mediaDevices.getUserMedia({ audio: {
+    deviceId: deviceId ? { exact: deviceId } : undefined,
+    echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+}
+function stopMic() { V.mic?.getTracks().forEach(t => t.stop()); V.mic = null; }
+
+async function joinVoice() {
+  if (V.on || !S.role) return;
+  if (!navigator.mediaDevices?.getUserMedia) return toast("Seu navegador não permite usar o microfone.");
+  audioCtx();   // precisa nascer de um clique para o som tocar
+  $("voiceJoin").disabled = true;
+  let err = null;
+  try { V.mic = await getMic(store.get("cinesala-mic") || ""); }
+  catch (e) { err = e; if (store.get("cinesala-mic")) try { V.mic = await getMic(""); err = null; } catch (e2) { err = e2; } }
+  $("voiceJoin").disabled = false;
+  if (!V.mic) return toast(err?.name === "NotAllowedError" ? "O microfone está bloqueado. Libere no cadeado 🔒 ao lado do endereço do site." : "Não consegui abrir o microfone: " + (err?.message || err), 7000);
+  if (!S.role) return stopMic();
+  V.on = true; V.muted = false;
+  watchTalk(S.peer.id, V.mic);
+  fillMics(); voiceUi(); sendVoiceState();
+  sysMsg("Você entrou no chat de voz.");
+}
+function leaveVoice(silent) {
+  if (!V.on) return;
+  V.on = false; stopMic();
+  for (const id of [...V.calls.keys()]) dropVoice(id);
+  unwatchTalk(S.peer?.id);
+  V.volOpen = null;
+  voiceUi();
+  if (!silent) sendVoiceState();
+}
+function sendVoiceState() {
+  if (S.role === "host") hostSyncUsers();
+  else if (S.hostConn?.open) S.hostConn.send({ t: "voice", on: V.on, muted: V.muted });
+}
+function toggleMute() {
+  if (!V.on) return;
+  V.muted = !V.muted;
+  V.mic?.getAudioTracks().forEach(t => t.enabled = !V.muted);
+  voiceUi(); sendVoiceState();
+}
+function voiceUi() {
+  $("voiceJoin").classList.toggle("hidden", V.on);
+  for (const id of ["micBtn", "voiceLeave", "micSel"]) $(id).classList.toggle("hidden", !V.on);
+  $("micBtn").textContent = V.muted ? "🔇 Desmutar" : "🎤 Mutar";
+  $("micBtn").classList.toggle("muted", V.muted);
+}
+async function fillMics() {
+  const sel = $("micSel");
+  const devs = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter(d => d.kind === "audioinput");
+  const cur = V.mic?.getAudioTracks()[0]?.getSettings?.().deviceId;
+  sel.textContent = "";
+  devs.forEach((d, i) => { const o = document.createElement("option"); o.value = d.deviceId; o.textContent = "🎤 " + (d.label || `Microfone ${i + 1}`); sel.append(o); });
+  if (cur && devs.some(d => d.deviceId === cur)) sel.value = cur;
+}
+/* Trocar o microfone sem cair a ligação de ninguém */
+async function switchMic(deviceId) {
+  let ns;
+  try { ns = await getMic(deviceId); } catch (e) { toast("Não consegui usar esse microfone: " + e.message); return fillMics(); }
+  if (!V.on) return ns.getTracks().forEach(t => t.stop());
+  const nt = ns.getAudioTracks()[0]; nt.enabled = !V.muted;
+  for (const e of V.calls.values()) {
+    const snd = e.call.peerConnection?.getSenders().find(x => x.track?.kind === "audio");
+    if (snd) try { await snd.replaceTrack(nt); } catch (er) { console.warn("replaceTrack", er); }
+  }
+  stopMic(); V.mic = ns; store.set("cinesala-mic", deviceId);
+  watchTalk(S.peer.id, V.mic);
+  toast("Microfone trocado.");
+}
+$("voiceJoin").onclick = () => joinVoice();
+$("voiceLeave").onclick = () => { leaveVoice(); sysMsg("Você saiu do chat de voz."); };
+$("micBtn").onclick = () => toggleMute();
+$("micSel").onchange = () => switchMic($("micSel").value);
+navigator.mediaDevices?.addEventListener?.("devicechange", () => { if (V.on) fillMics(); });
+
+/* Quem liga é sempre o de ID "menor", para não haver ligação dupla */
+function syncVoice() {
+  const me = S.peer?.id;
+  const want = new Set(V.on && me ? S.users.filter(u => u.voice && u.id !== me).map(u => u.id) : []);
+  for (const id of [...V.calls.keys()]) if (!want.has(id)) dropVoice(id);
+  for (const id of want) if (!V.calls.has(id) && me < id) {
+    const call = S.peer.call(id, V.mic, { metadata: { kind: "voice" } });
+    if (call) wireVoice(id, call);
+  }
+}
+function onVoiceCall(call) {
+  if (!V.on || !V.mic || !isMember(call.peer)) { try { call.close(); } catch {} return; }
+  if (V.calls.has(call.peer)) dropVoice(call.peer);
+  call.answer(V.mic);
+  wireVoice(call.peer, call);
+}
+function wireVoice(id, call) {
+  const e = { call };
+  V.calls.set(id, e);
+  call.on("stream", st => { if (V.calls.get(id) === e && !e.stream) playVoice(id, e, st); });
+  call.on("close", () => { if (V.calls.get(id) === e) dropVoice(id); });
+  call.on("error", er => console.warn("voz", er));
+}
+function playVoice(id, e, st) {
+  e.stream = st;
+  e.el = new Audio(); e.el.autoplay = true; e.el.srcObject = st;
+  const ac = audioCtx();
+  e.src = ac.createMediaStreamSource(st);
+  e.gain = ac.createGain(); e.src.connect(e.gain);
+  watchTalk(id, st, e.src);
+  applyVol(id);
+  e.el.play().catch(() => {});
+}
+/* Até 100%: volume normal do navegador. Acima disso: amplifica com Web Audio */
+function applyVol(id) {
+  const e = V.calls.get(id); if (!e?.el) return;
+  const u = S.users.find(x => x.id === id);
+  const v = u ? getVol(u.name) : 1;
+  try { e.gain.disconnect(); } catch {}
+  if (v <= 1) { e.el.muted = false; e.el.volume = v; }
+  else { e.el.muted = true; e.gain.gain.value = v; e.gain.connect(audioCtx().destination); }
+}
+function dropVoice(id) {
+  const e = V.calls.get(id); if (!e) return;
+  V.calls.delete(id);
+  try { e.call.close(); } catch {}
+  if (e.el) { e.el.srcObject = null; e.el.remove(); }
+  try { e.src?.disconnect(); e.gain?.disconnect(); } catch {}
+  unwatchTalk(id);
+}
+
+/* Bolinha verde em volta de quem está falando */
+function watchTalk(id, stream, src) {
+  unwatchTalk(id);
+  try {
+    const ac = audioCtx(), node = src || ac.createMediaStreamSource(stream), an = ac.createAnalyser();
+    an.fftSize = 512; node.connect(an);
+    V.talk.set(id, { an, node, own: !src, buf: new Float32Array(an.fftSize) });
+  } catch (e) { console.warn("talk", e); }
+}
+function unwatchTalk(id) {
+  const t = V.talk.get(id); if (!t) return;
+  V.talk.delete(id);
+  try { t.node.disconnect(t.an); } catch {}
+}
+setInterval(() => {
+  if (!V.talk.size && !V.talking.size) return;
+  const now = new Set();
+  for (const [id, t] of V.talk) {
+    if (id === S.peer?.id && V.muted) continue;
+    t.an.getFloatTimeDomainData(t.buf);
+    let sum = 0; for (const x of t.buf) sum += x * x;
+    if (Math.sqrt(sum / t.buf.length) > 0.02) now.add(id);
+  }
+  V.talking = now;
+  for (const li of $("users").querySelectorAll("li[data-pid]")) li.querySelector(".av")?.classList.toggle("talk", now.has(li.dataset.pid));
+}, 150);
+
 /* ---------- Saída ---------- */
 async function leave() {
   S.leaving = true;
-  if (S.role === "host") { stopShare(); broadcast({ t: "sys", text: "O anfitrião encerrou a sala." }); }
+  if (S.role === "host") { stopShare(); broadcast({ t: "sys", text: "O anfitrião encerrou a sala." }); broadcast({ t: "end" }); }
   else stopLocal();
+  leaveVoice(true);
   await Promise.race([setPresence(), new Promise(r => setTimeout(r, 1500))]);   // tira a sala do seu status
   try { S.peer?.destroy(); } catch {}
   location.href = location.href.split("#")[0];
