@@ -137,15 +137,49 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
 .inv .row button{flex:1}
 @keyframes pop{from{transform:translateY(20px);opacity:0}}
 /* Conversa com amigo */
-#friendView{display:flex;flex-direction:column;height:calc(100vh - 64px);min-height:420px}
-#friendView .fcard{padding:16px 20px;gap:14px}
-#friendView .av.huge{width:56px;height:56px;font-size:24px}
-#friendView .hello{font-size:22px}
-#friendView .factions{margin-top:12px}
-#friendView .factions button{padding:9px 14px}
-#fvHint{margin:8px 0 12px!important;font-size:13px}
-.dm{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--panel);border-radius:14px;overflow:hidden}
-#dmList{flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:2px}
+#friendView{display:grid;grid-template-columns:1fr 300px;height:100%;max-width:none;margin:0;min-height:0}
+.dmMain{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel2)}
+.dmHead{display:flex;align-items:center;gap:10px;padding:0 12px 0 16px;height:52px;flex:none;border-bottom:1px solid #0005;box-shadow:0 1px 2px #0003}
+.dmHead .avw{position:relative;flex:none}
+.dmHead .av{width:26px;height:26px;font-size:12px}
+.dmHead .avw .dot{position:absolute;right:-3px;bottom:-3px;border:3px solid var(--panel2);width:12px;height:12px}
+.dmHead b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dmHead .hst{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dmHead .hst.live{color:#ff8a8d;font-weight:700}
+.dmHead .ibtn{width:34px;height:34px;font-size:18px;color:var(--muted)}
+.dmHead .ibtn:hover{color:var(--text)}
+#fvProfBtn{display:none}
+.dm{flex:1;min-height:0;display:flex;flex-direction:column}
+#dmList{flex:1;overflow:auto;padding:16px 20px 8px;display:flex;flex-direction:column;gap:2px}
+.dmMsg:hover{background:#0000000f}
+#dmForm{padding:0 16px 20px!important;border:0!important}
+#dmForm input{background:#383a40;border:0;border-radius:10px;padding:13px 16px}
+#dmForm button{display:none}
+/* Perfil do amigo (barra direita) */
+.fprof{background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow:auto;border-left:1px solid #0004}
+.fbanner{height:110px;flex:none}
+.fprof .avw{position:relative;margin:-48px 0 0 16px;width:92px;flex:none}
+.fprof .av.huge{width:92px;height:92px;font-size:38px;border:6px solid var(--panel)}
+.fprof .avw .dot{position:absolute;right:2px;bottom:4px;border:5px solid var(--panel);width:24px;height:24px}
+.fprof .pbody{padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px;flex:1}
+.fprof h2{margin:0;font-size:21px;word-break:break-word}
+.fprof .fstatus{font-size:14px;margin-top:-8px}
+.fprof .fstatus.live{color:#ff8a8d;font-weight:700}
+.fbox{background:var(--bg);border-radius:10px;padding:12px}
+.fbox h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;color:var(--muted)}
+.fbox p{margin:0;font-size:14px}
+.fbox .code{letter-spacing:2px;font-family:ui-monospace,monospace}
+.fbox button{width:100%;margin-top:10px;padding:9px 12px}
+.fbox button+button{margin-top:6px}
+#fvHint{margin:8px 0 0!important;font-size:12px}
+#fvRemove{background:transparent;color:#ff8a8d;border:1px solid #da373c66;padding:8px}
+#fvRemove:hover{background:var(--danger);color:#fff}
+@media (max-width:1100px){
+  #friendView{grid-template-columns:1fr}
+  #fvProfBtn{display:grid}
+  .fprof{display:none;position:fixed;right:0;top:0;bottom:0;width:min(320px,90vw);z-index:15;box-shadow:-10px 0 40px #000a}
+  #friendView.showProf .fprof{display:flex}
+}
 #dmList .dmEmpty{margin:auto;color:var(--muted);text-align:center}
 .dmMsg{display:flex;gap:10px;padding:4px 0;max-width:100%}
 .dmMsg .av{width:34px;height:34px;margin-top:2px}
@@ -366,24 +400,44 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
     </div>
 
     <div id="friendView" class="view hidden">
-      <div class="fcard">
-        <span class="av huge" id="fvAv">?</span>
-        <div class="fmeta"><h1 class="hello" id="fvName">—</h1><div id="fvStatus" class="fstatus"></div></div>
+      <div class="dmMain">
+        <header class="dmHead">
+          <span class="avw"><span class="av" id="fvAvSm">?</span><i class="dot" id="fvDotSm"></i></span>
+          <b id="fvNameSm">—</b>
+          <span class="hst" id="fvStatusSm"></span>
+          <span class="spacer" style="flex:1"></span>
+          <button id="fvWatchTop" class="ibtn hidden" type="button" title="Assistir">▶️</button>
+          <button id="fvStreamTop" class="ibtn" type="button" title="Transmitir">📺</button>
+          <button id="fvProfBtn" class="ibtn" type="button" title="Ver perfil">👤</button>
+        </header>
+        <div class="dm">
+          <div id="dmList"></div>
+          <div id="dmErr"></div>
+          <form id="dmForm" autocomplete="off">
+            <input id="dmIn" maxlength="1000" placeholder="Conversar com —">
+            <button class="primary">Enviar</button>
+          </form>
+        </div>
       </div>
-      <div class="factions">
-        <button id="fvWatch" class="ok hidden" type="button">▶ Assistir junto</button>
-        <button id="fvStream" class="primary" type="button">📺 Transmitir para —</button>
-        <button id="fvRemove" type="button">Remover amigo</button>
-      </div>
-      <p class="sub" id="fvHint" style="margin-top:12px"></p>
-      <div class="dm">
-        <div id="dmList"></div>
-        <div id="dmErr"></div>
-        <form id="dmForm" autocomplete="off">
-          <input id="dmIn" maxlength="1000" placeholder="Mensagem…">
-          <button class="primary">Enviar</button>
-        </form>
-      </div>
+      <aside class="fprof">
+        <div class="fbanner" id="fvBanner"></div>
+        <span class="avw"><span class="av huge" id="fvAv">?</span><i class="dot" id="fvDot"></i></span>
+        <div class="pbody">
+          <h2 id="fvName">—</h2>
+          <div id="fvStatus" class="fstatus"></div>
+          <div class="fbox">
+            <h4 id="fvActTitle">Atividade</h4>
+            <p id="fvActivity"></p>
+            <button id="fvWatch" class="ok hidden" type="button">▶ Assistir junto</button>
+            <button id="fvStream" class="primary" type="button">📺 Transmitir para —</button>
+            <p class="sub" id="fvHint"></p>
+          </div>
+          <div class="fbox"><h4>Amigos desde</h4><p id="fvSince">—</p></div>
+          <div class="fbox"><h4>Código de amigo</h4><p class="code" id="fvCode">…</p></div>
+          <span style="flex:1"></span>
+          <button id="fvRemove" type="button">Remover amigo</button>
+        </div>
+      </aside>
     </div>
 
     <div id="roomView" class="hidden roomwrap"></div>
@@ -636,7 +690,7 @@ const VIEWS = ["homeView", "friendsView", "friendView", "roomView", "adminView"]
 function showView(id) {
   if (id === "roomView" && !S.role) id = "homeView";
   for (const v of VIEWS) $(v).classList.toggle("hidden", v !== id);
-  document.querySelector(".main").classList.toggle("flush", id === "roomView");
+  document.querySelector(".main").classList.toggle("flush", id === "roomView" || id === "friendView");
   document.querySelectorAll(".side .nav[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === id));
   if (id !== "friendView") { F.selected = null; closeDm(); renderSideFriends(); }
 }
@@ -789,6 +843,7 @@ const F = {
   dmUid: null, dmUnsub: null,   // conversa aberta
   lastUnsub: new Map(),         // uid do amigo -> escuta da última mensagem
   unread: new Map(),            // uid do amigo -> quantas mensagens novas
+  codes: new Map(),             // uid do amigo -> código de amigo (perfil)
 };
 const ONLINE_MS = 150_000;
 const INVITE_TTL = 10 * 60_000;
@@ -979,11 +1034,26 @@ function renderFriendView() {
   const uid = F.selected; if (!uid) return;
   const pair = F.pairs.get(pairIdOf(S.uid, uid));
   if (!pair || pair.status !== "accepted") { F.selected = null; return showView("friendsView"); }
-  const f = friendInfo(uid);
-  $("fvAv").textContent = f.name[0].toUpperCase(); $("fvAv").style.background = colorFor(f.name);
-  $("fvName").textContent = f.name;
-  const st = $("fvStatus"); st.textContent = "";
-  const d = document.createElement("i"); d.className = "dot " + f.state; st.append(d, document.createTextNode(f.text));
+  const f = friendInfo(uid), color = colorFor(f.name), ini = f.name[0].toUpperCase();
+  for (const id of ["fvAv", "fvAvSm"]) { $(id).textContent = ini; $(id).style.background = color; }
+  $("fvBanner").style.background = `linear-gradient(135deg, ${color}, ${color.replace("45%)", "28%)")})`;
+  $("fvName").textContent = $("fvNameSm").textContent = f.name;
+  $("fvDot").className = $("fvDotSm").className = "dot " + f.state;
+  $("fvStatus").textContent = $("fvStatusSm").textContent = f.text;
+  $("fvStatus").className = "fstatus" + (f.state === "live" ? " live" : "");
+  $("fvStatusSm").className = "hst" + (f.state === "live" ? " live" : "");
+  $("dmIn").placeholder = `Conversar com @${f.name}`;
+  $("fvActTitle").textContent = f.state === "live" ? "🔴 Ao vivo agora" : f.room ? "Em uma sala" : "Atividade";
+  $("fvActivity").textContent = f.state === "live" ? `${f.name} está transmitindo.` :
+    f.room ? (S.code === f.room ? "Está na mesma sala que você." : `${f.name} está assistindo uma sala.`) :
+    f.state === "on" ? "Online e livre para assistir." : "Offline agora.";
+  const since = pair.at?.toDate ? pair.at.toDate() : null;
+  $("fvSince").textContent = since ? since.toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  if (!F.codes.has(uid)) {
+    F.codes.set(uid, "…");
+    db.collection("profiles").doc(uid).get().then(d => { F.codes.set(uid, d.exists ? fmtCode(d.data().code) : "—"); if (F.selected === uid) $("fvCode").textContent = F.codes.get(uid); }).catch(() => F.codes.set(uid, "—"));
+  }
+  $("fvCode").textContent = F.codes.get(uid);
 
   const canWatch = !!f.room && f.state !== "off" && S.code !== f.room;
   $("fvWatch").classList.toggle("hidden", !canWatch);
@@ -991,12 +1061,18 @@ function renderFriendView() {
   const inRoom = !!S.role;
   $("fvStream").textContent = inRoom ? `📨 Chamar ${f.name} para esta sala` : `📺 Transmitir para ${f.name}`;
   $("fvStream").disabled = false;
+  $("fvWatchTop").classList.toggle("hidden", !canWatch); $("fvWatchTop").title = $("fvWatch").textContent.replace("▶ ", "");
+  $("fvStreamTop").title = $("fvStream").textContent.replace(/^\S+ /, "");
   $("fvHint").textContent =
     f.state === "off" ? `${f.name} está offline — o convite fica esperando por 10 minutos.` :
     inRoom ? "Seu amigo vai receber um aviso na tela para entrar. Para transmitir, use “Iniciar transmissão” dentro da sala." :
     "Você escolhe a tela/aba, a sala é criada e seu amigo recebe o convite na hora.";
 }
 $("fvStream").onclick = () => F.selected && streamTo(F.selected);
+$("fvStreamTop").onclick = () => $("fvStream").click();
+$("fvWatchTop").onclick = () => $("fvWatch").click();
+$("fvProfBtn").onclick = e => { e.stopPropagation(); $("friendView").classList.toggle("showProf"); };
+document.addEventListener("click", e => { if (!e.target.closest(".fprof, #fvProfBtn")) $("friendView").classList.remove("showProf"); });
 $("fvWatch").onclick = () => { const f = F.selected && friendInfo(F.selected); if (f?.room) joinRoom(f.room); };
 $("fvRemove").onclick = () => {
   const uid = F.selected; if (!uid) return;
