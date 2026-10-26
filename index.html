@@ -89,6 +89,9 @@ label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;colo
 #ccShare:disabled{opacity:.6;cursor:not-allowed}
 .gearmenu{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px;margin-top:8px;display:flex;flex-direction:column;gap:2px}
 .gearmenu .nav{padding:9px 10px}
+#shareBtn{display:none!important}   /* transmitir/parar fica só no card da lateral */
+.gmLabel{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);padding:6px 6px 2px}
+#micSel{margin:0 0 6px;padding:7px 8px;font-size:13px;width:100%}
 .main{overflow:auto;padding:32px 28px;min-width:0}
 .view{max-width:860px;margin:0 auto}
 .hello{font-size:28px;margin:0 0 4px}
@@ -257,7 +260,6 @@ aside h3{margin:0;padding:12px 14px 6px;font-size:12px;text-transform:uppercase;
 #voiceBar{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 6px}
 #voiceBar button{padding:7px 10px;font-size:13px}
 #micBtn.muted{background:var(--danger);color:#fff}
-#micSel{flex:1 1 100%;padding:6px 8px;font-size:13px}
 #users li.clickable{cursor:pointer}
 #users li.clickable:hover{background:var(--panel2)}
 #users .vi{font-size:12px}
@@ -332,11 +334,13 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
       <div class="cc-top">
         <span class="cc-ico" id="ccIco">📶</span>
         <div class="cc-txt"><b id="ccTitle">Conectado</b><small id="ccSub"></small></div>
-        <button id="ccHang" class="ibtn" type="button" title="Sair da sala">📞</button>
+        <button id="ccHang" class="ibtn hidden" type="button" title="Sair da voz">📞</button>
       </div>
       <button id="ccShare" type="button">🖥️ <span>Transmitir</span></button>
     </div>
     <div id="gearMenu" class="gearmenu hidden">
+      <label class="gmLabel">🎤 Microfone</label>
+      <select id="micSel" title="Microfone"><option value="">Entre na voz para escolher</option></select>
       <button class="nav hidden" id="adminBtn" data-view="adminView" type="button">🛡️ <span>Painel de admin</span></button>
       <button id="logoutBtn" type="button" class="nav">↩ <span>Sair da conta</span></button>
     </div>
@@ -487,7 +491,6 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 16p
       <button id="voiceJoin" class="ok" type="button">🎙️ Entrar na voz</button>
       <button id="micBtn" class="hidden" type="button">🎤 Mutar</button>
       <button id="voiceLeave" class="hidden danger" type="button" title="Sair do chat de voz">📞 Sair da voz</button>
-      <select id="micSel" class="hidden" title="Microfone"></select>
     </div>
     <h3>Na sala</h3>
     <ul id="users"></ul>
@@ -1368,10 +1371,7 @@ function updateSide() {
   $("meDeaf").title = V.deaf ? "Voltar a ouvir as vozes" : "Silenciar a voz de todos";
 }
 $("ccShare").onclick = () => $("shareBtn").click();
-$("ccHang").onclick = () => {
-  if (!S.role) return;
-  if (confirm(S.role === "host" ? "Encerrar a sala para todo mundo?" : "Sair da sala?")) leave();
-};
+$("ccHang").onclick = () => { if (V.on) { leaveVoice(); sysMsg("Você saiu do chat de voz."); } };
 $("meMic").onclick = () => {
   if (!S.role) return toast("Entre numa sala para usar o chat de voz.");
   if (!V.on) joinVoice(); else toggleMute();
@@ -1958,7 +1958,8 @@ function toggleMute() {
 }
 function voiceUi() {
   $("voiceJoin").classList.toggle("hidden", V.on);
-  for (const id of ["micBtn", "voiceLeave", "micSel"]) $(id).classList.toggle("hidden", !V.on);
+  for (const id of ["micBtn", "voiceLeave"]) $(id).classList.toggle("hidden", !V.on);
+  $("ccHang").classList.toggle("hidden", !V.on);
   $("micBtn").textContent = V.muted ? "🔇 Desmutar" : "🎤 Mutar";
   $("micBtn").classList.toggle("muted", V.muted);
   updateSide();
@@ -1973,6 +1974,7 @@ async function fillMics() {
 }
 /* Trocar o microfone sem cair a ligação de ninguém */
 async function switchMic(deviceId) {
+  if (!V.on) { store.set("cinesala-mic", deviceId); return toast("Microfone escolhido. Ele será usado quando você entrar na voz."); }
   let ns;
   try { ns = await getMic(deviceId); } catch (e) { toast("Não consegui usar esse microfone: " + e.message); return fillMics(); }
   if (!V.on) return ns.getTracks().forEach(t => t.stop());
