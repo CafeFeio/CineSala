@@ -874,7 +874,7 @@ async function startSocial() {
   db.collection("invites").where("to", "==", S.uid).onSnapshot(snap => {
     snap.docChanges().forEach(ch => ch.type === "removed" ? dropInviteCard(ch.doc.id) : showInvite(ch.doc));
   }, e => console.warn("convites", e));
-  setPresence();
+  setPresence(); watchClock();
   F.hb = setInterval(setPresence, 60_000);
   setInterval(() => { renderFriends(); }, 30_000);   // atualiza "online/offline" com o tempo
 }
@@ -895,6 +895,20 @@ async function ensureProfile() {
   }
   F.profile = snap.data();
   $("myCode").textContent = fmtCode(F.profile.code);
+}
+
+/* Relógio do servidor: se o relógio do computador estiver errado, todo mundo
+   aparecia "offline" e os convites venciam na hora. Medimos a diferença pelo
+   horário que o Firebase grava no seu próprio status. */
+let clockSkew = 0;
+function serverNow() { return Date.now() + clockSkew; }
+function watchClock() {
+  db.collection("presence").doc(S.uid).onSnapshot(d => {
+    const t = d.data()?.at?.toMillis?.();
+    if (d.metadata.hasPendingWrites || !t || t < 1.6e12) return;
+    clockSkew = t - Date.now();
+    renderFriends();
+  }, () => {});
 }
 
 /* Seu status, visto só pelos seus amigos */
@@ -930,7 +944,7 @@ function friendInfo(uid) {
   const pair = F.pairs.get(pairIdOf(S.uid, uid));
   const p = F.pres.get(uid);
   const name = cleanName(p?.name || pair?.names?.[uid]);
-  const online = !!p?.at?.toMillis && Date.now() - p.at.toMillis() < ONLINE_MS;
+  const online = !!p?.at?.toMillis && serverNow() - p.at.toMillis() < ONLINE_MS;
   let state = "off", text = "Offline";
   if (online && p.room && p.live) { state = "live"; text = "🔴 Transmitindo agora"; }
   else if (online && p.room && p.watching) { state = "on"; text = "Assistindo uma sala"; }
@@ -1110,10 +1124,10 @@ function joinRoom(code) {
 
 /* ---- Mensagens diretas (ficam salvas no Firestore, só os dois leem) ---- */
 function readKey(uid) { return `cinesala-lido-${S.uid}-${uid}`; }
-function msgTime(d) { const t = d.at?.toMillis ? d.at.toMillis() : null; return t ?? Date.now(); }
+function msgTime(d) { const t = d.at?.toMillis ? d.at.toMillis() : null; return t ?? serverNow(); }
 function dmVisible(uid) { return F.dmUid === uid && !$("friendView").classList.contains("hidden") && !document.hidden; }
 function markRead(uid, at) {
-  store.set(readKey(uid), String(Math.max(at || Date.now(), +store.get(readKey(uid)) || 0)));
+  store.set(readKey(uid), String(Math.max(at || serverNow(), +store.get(readKey(uid)) || 0)));
   if (F.unread.delete(uid)) { renderSideFriends(); renderFriends(); }
 }
 /* Fica de olho na última mensagem de cada amigo para avisar mensagem nova */
@@ -1149,7 +1163,7 @@ function openDm(uid) {
   F.dmUnsub = db.collection("friends").doc(pid).collection("messages").orderBy("at", "desc").limit(150)
     .onSnapshot(snap => {
       renderDm(uid, snap.docs.map(d => d.data({ serverTimestamps: "estimate" })).reverse());
-      if (dmVisible(uid)) markRead(uid, Date.now());
+      if (dmVisible(uid)) markRead(uid, serverNow());
     }, e => { $("dmErr").textContent = "Não consegui abrir a conversa: " + permMsg(e); });
   setTimeout(() => $("dmIn").focus(), 50);
 }
@@ -1194,7 +1208,7 @@ $("dmForm").onsubmit = e => {
   db.collection("friends").doc(pairIdOf(S.uid, uid)).collection("messages").add({ from: S.uid, text, at: ts() })
     .catch(er => { $("dmErr").textContent = "Mensagem não enviada: " + permMsg(er); $("dmIn").value = text; });
 };
-document.addEventListener("visibilitychange", () => { if (F.dmUid && dmVisible(F.dmUid)) markRead(F.dmUid, Date.now()); });
+document.addEventListener("visibilitychange", () => { if (F.dmUid && dmVisible(F.dmUid)) markRead(F.dmUid, serverNow()); });
 
 /* Convites que chegam pra você */
 function beep() {
@@ -1206,8 +1220,8 @@ function beep() {
 }
 function showInvite(doc) {
   const d = doc.data();
-  const at = d.at?.toMillis ? d.at.toMillis() : Date.now();
-  if (Date.now() - at > INVITE_TTL || typeof d.room !== "string" || d.room.length !== 6) { doc.ref.delete().catch(() => {}); return; }
+  const at = d.at?.toMillis ? d.at.toMillis() : serverNow();
+  if (serverNow() - at > INVITE_TTL || typeof d.room !== "string" || d.room.length !== 6) { doc.ref.delete().catch(() => {}); return; }
   if (F.invCards.has(doc.id)) return;
   const name = cleanName(d.fromName);
   const card = document.createElement("div"); card.className = "inv";
