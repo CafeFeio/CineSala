@@ -623,8 +623,6 @@ const S = {
   stream: null,
   viewers: new Map(),  // peerId -> { conn, name, call }
   banned: new Set(),   // uids (contas) expulsas
-  allowed: new Set(),  // sala privada: uids convidados (ou aprovados) pelo anfitrião
-  knocks: new Map(),   // peerId -> { conn, acc, card } pedindo para entrar
   uid: "",
   // viewer
   hostConn: null,
@@ -1063,7 +1061,7 @@ function renderFriendView() {
 
   const canWatch = !!f.room && f.state !== "off" && S.code !== f.room;
   $("fvWatch").classList.toggle("hidden", !canWatch);
-  $("fvWatch").textContent = f.state === "live" ? `▶ Pedir para assistir ${f.name}` : "▶ Pedir para entrar";
+  $("fvWatch").textContent = f.state === "live" ? `▶ Assistir ${f.name}` : "▶ Entrar na mesma sala";
   const inRoom = !!S.role;
   $("fvStream").textContent = inRoom ? `📨 Chamar ${f.name} para esta sala` : `📺 Transmitir para ${f.name}`;
   $("fvStream").disabled = false;
@@ -1099,8 +1097,6 @@ async function streamTo(uid) {
 async function sendInvite(uid) {
   const f = friendInfo(uid);
   try {
-    if (S.role === "host") S.allowed.add(uid);                          // sala privada: convidado pode entrar
-    else if (S.hostConn?.open) S.hostConn.send({ t: "allow", uid });   // quem está na sala também pode convidar
     await db.collection("invites").add({ from: S.uid, fromName: S.name, to: uid, room: S.code, at: ts() });
     toast(`Convite enviado para ${f.name}! 📨`);
   } catch (e) { toast("Não consegui enviar o convite: " + permMsg(e), 6000); }
@@ -1281,7 +1277,7 @@ function enterRoom() {
 /* ---------- Room UI ---------- */
 function shareLink() { return location.href.split("#")[0] + "#" + S.code; }
 $("copyBtn").onclick = async () => {
-  try { await navigator.clipboard.writeText(shareLink()); toast("Link copiado! A sala é privada: quem entrar pelo link precisa da sua aprovação.", 5000); }
+  try { await navigator.clipboard.writeText(shareLink()); toast("Link copiado! Mande para seus amigos."); }
   catch { prompt("Copie o link:", shareLink()); }
 };
 $("theaterBtn").onclick = () => $("room").classList.toggle("theater");
@@ -1443,7 +1439,7 @@ function startHost(name, attempt = 0, onOpen = null) {
   peer.on("call", onIncomingCall);
   peer.on("connection", conn => {
     conn.on("data", d => hostOnData(conn, d));
-    conn.on("close", () => { dropKnock(conn.peer, conn); hostDropViewer(conn.peer, conn); });
+    conn.on("close", () => hostDropViewer(conn.peer, conn));
     conn.on("error", () => hostDropViewer(conn.peer, conn));
   });
 }
@@ -1475,36 +1471,12 @@ function hostOnData(conn, d) {
       if (await isGloballyBanned(acc.uid)) return reject("banned");               // banido pelo admin
       if (!conn.open) return;
       if (acc.uid === S.uid) return reject("denied");
-      if (!S.allowed.has(acc.uid)) return knock(conn, acc);   // sala privada: sem convite, pede para entrar
       admit(conn, acc);
     });
     return;
   }
   if (!v) return;
-  if (d.t === "allow" && typeof d.uid === "string") { S.allowed.add(d.uid); return; }
   hostOnRoomData(conn, v, d);
-}
-
-/* Sem convite: o anfitrião vê um aviso e decide */
-function knock(conn, acc) {
-  if (S.knocks.has(conn.peer)) return;
-  conn.send({ t: "knock" });
-  const card = document.createElement("div"); card.className = "inv";
-  const b = document.createElement("b"); b.textContent = `🔔 ${acc.name} quer entrar na sua sala`;
-  const p = document.createElement("p"); p.textContent = "Essa pessoa não foi convidada. Ela entrou pelo link ou pelo código da sala.";
-  const row = document.createElement("div"); row.className = "row";
-  row.append(
-    actBtn("Deixar entrar", "ok", () => { dropKnock(conn.peer); if (!conn.open) return; S.allowed.add(acc.uid); admit(conn, acc); }),
-    actBtn("Recusar", "danger", () => { dropKnock(conn.peer); try { conn.send({ t: "refused" }); } catch {} setTimeout(() => conn.close(), 300); }),
-  );
-  card.append(b, p, row);
-  $("invites").append(card);
-  S.knocks.set(conn.peer, { conn, acc, card });
-  beep();
-}
-function dropKnock(id, conn) {
-  const k = S.knocks.get(id); if (!k || (conn && k.conn !== conn)) return;
-  k.card.remove(); S.knocks.delete(id);
 }
 
 function admit(conn, acc) {
@@ -1556,7 +1528,7 @@ function hostDropViewer(id, conn) {
 function hostKick(id) {
   const v = S.viewers.get(id); if (!v) return;
   if (isAdmin(v.uid)) { toast("O administrador não pode ser expulso."); return; }
-  S.banned.add(v.uid); S.allowed.delete(v.uid);
+  S.banned.add(v.uid);
   if (db) db.collection("kicks").add({
     uid: v.uid, name: v.name, kickedByUid: S.uid, kickedByName: S.name, room: S.code,
     at: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1861,11 +1833,6 @@ function startViewer(name, code) {
           }
           setTimeout(() => { try { peer.destroy(); } catch {} }, 200);
           break;
-        case "knock":
-          lobbyError("🔔 Sala privada: pedido enviado. Esperando o anfitrião deixar você entrar…");
-          if (!entered) toast("Pedido enviado ao anfitrião. Aguarde a aprovação.", 5000);
-          break;
-        case "refused": failJoin("O anfitrião recusou seu pedido para entrar."); break;
         case "denied":
           failJoin("O anfitrião não conseguiu confirmar sua conta. Saia da conta, entre de novo e tente outra vez.");
           break;
