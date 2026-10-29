@@ -913,7 +913,7 @@ function watchClock() {
 
 /* Seu status, visto só pelos seus amigos */
 function setPresence() {
-  if (!db || !S.uid) return Promise.resolve();
+  if (!db || !S.uid || tabPaused) return Promise.resolve();
   const inRoom = !!S.role && !S.leaving;
   return db.collection("presence").doc(S.uid).set({
     name: S.name, at: ts(),
@@ -923,7 +923,7 @@ function setPresence() {
   }).catch(e => console.warn("status", e));
 }
 function goOffline() {
-  if (!db || !S.uid) return Promise.resolve();
+  if (!db || !S.uid || tabPaused) return Promise.resolve();
   return db.collection("presence").doc(S.uid).set({
     name: S.name, at: firebase.firestore.Timestamp.fromMillis(0), room: "", live: false, watching: false,
   }).catch(() => {});
@@ -1212,6 +1212,7 @@ document.addEventListener("visibilitychange", () => { if (F.dmUid && dmVisible(F
 
 /* Convites que chegam pra você */
 function beep() {
+  if (tabPaused) return;
   try {
     const ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain();
     o.frequency.value = 880; g.gain.setValueAtTime(.15, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .5);
@@ -1219,6 +1220,7 @@ function beep() {
   } catch {}
 }
 function showInvite(doc) {
+  if (tabPaused) return;
   const d = doc.data();
   const at = d.at?.toMillis ? d.at.toMillis() : serverNow();
   if (serverNow() - at > INVITE_TTL || typeof d.room !== "string" || d.room.length !== 6) { doc.ref.delete().catch(() => {}); return; }
@@ -2096,6 +2098,36 @@ setInterval(() => {
   V.talking = now;
   for (const li of $("users").querySelectorAll("li[data-pid]")) li.querySelector(".av")?.classList.toggle("talk", now.has(li.dataset.pid));
 }, 150);
+
+/* ---------- Uma aba só ----------
+   Com o CineSala aberto em duas abas, cada uma podia ter a sua sala e o seu status
+   ficava trocando entre elas: o amigo entrava na sala da aba esquecida, ficava
+   "aguardando" e você nem via ele. Agora a aba mais nova assume e a antiga pausa. */
+var tabPaused = false;
+const TAB_ID = Math.random().toString(36).slice(2);
+try {
+  const bc = new BroadcastChannel("cinesala-aba");
+  bc.onmessage = e => { if (e.data?.t === "nova-aba" && e.data.id !== TAB_ID) pauseTab(); };
+  bc.postMessage({ t: "nova-aba", id: TAB_ID });
+} catch {}
+function pauseTab() {
+  if (tabPaused) return;
+  if (S.role === "host") { try { broadcast({ t: "sys", text: "O anfitrião encerrou a sala." }); broadcast({ t: "end" }); } catch {} }
+  S.leaving = true;
+  tabPaused = true;
+  try { stopLocal(); closeIn(); leaveVoice(true); } catch {}
+  setTimeout(() => { try { S.peer?.destroy(); } catch {} }, 300);
+  clearInterval(F.hb);
+  const o = document.createElement("div");
+  o.style.cssText = "position:fixed;inset:0;z-index:100;background:#1e1f22f2;display:grid;place-items:center;padding:20px;text-align:center";
+  const box = document.createElement("div"); box.style.maxWidth = "420px";
+  const h = document.createElement("h2"); h.textContent = "O CineSala foi aberto em outra aba";
+  const p = document.createElement("p"); p.style.color = "var(--muted)";
+  p.textContent = "Para não ter duas salas ao mesmo tempo, esta aba foi pausada" + (S.role ? " e saiu da sala." : ".") + " Continue na outra aba ou clique abaixo para usar esta.";
+  const b = document.createElement("button"); b.className = "primary"; b.textContent = "Usar esta aba";
+  b.onclick = () => { location.href = location.href.split("#")[0]; };
+  box.append(h, p, b); o.append(box); document.body.append(o);
+}
 
 /* ---------- Saída ---------- */
 async function leave() {
