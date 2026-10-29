@@ -553,11 +553,39 @@ const PEER_OPTS = {
   debug: 1,
   config: {
     iceServers: [
-      { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+      { urls: ["stun:stun.l.google.com:19302", "stun:stun.relay.metered.ca:80"] },
+      // Retransmissão pública e gratuita do PeerJS (a de antes): sem limite, mas às vezes fica fora do ar
       { urls: ["turn:eu-0.turn.peerjs.com:3478", "turn:us-0.turn.peerjs.com:3478"], username: "peerjs", credential: "peerjsp" },
+      // Retransmissão (Metered) para quem não consegue conectar direto. Porta 443/TCP passa até por rede de empresa.
+      {
+        urls: [
+          "turn:sa.relay.metered.ca:80",
+          "turn:sa.relay.metered.ca:80?transport=tcp",
+          "turn:sa.relay.metered.ca:443",
+          "turns:sa.relay.metered.ca:443?transport=tcp",
+        ],
+        username: "c01800558c122ddc35112881",
+        credential: "8X8CAdnwADJ16qXC",
+      },
     ],
   },
 };
+
+/* ▼ RETRANSMISSÃO DA CLOUDFLARE (grátis até 1.000 GB por mês).
+   Cole aqui o endereço do seu Worker (veja cloudflare-turn-worker.js).
+   Quando estiver preenchido, ele substitui a Metered, que só tem 500 MB. ▼ */
+const TURN_URL = "";
+if (TURN_URL) {
+  fetch(TURN_URL).then(r => r.json()).then(d => {
+    let list = d?.iceServers ?? d;
+    if (!Array.isArray(list)) list = [list];
+    list = list.filter(x => x && x.urls);
+    if (!list.length) return;
+    const ice = PEER_OPTS.config.iceServers;   // as próximas conexões já usam a lista nova
+    for (let i = ice.length - 1; i >= 0; i--) if (ice[i].username) ice.splice(i, 1);
+    ice.push(...list);
+  }).catch(e => console.warn("TURN da Cloudflare indisponível, usando a Metered", e));
+}
 
 /* ---------- Helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -1798,6 +1826,13 @@ function startViewer(name, code) {
   }, 4000);
 
   peer.on("open", () => { if (!entered) connectToHost(); });
+  /* Não fica "Conectando…" para sempre: depois de 25 s explica o que houve */
+  setTimeout(() => {
+    if (entered || S.peer !== peer || S.role !== "viewer") return;
+    failJoin(peer.open
+      ? "Não consegui conectar com o anfitrião. A rede de um de vocês está bloqueando a conexão direta (comum em 4G, internet de condomínio ou de empresa). Tente de novo ou use outra rede."
+      : "Não consegui falar com o servidor do CineSala. Verifique sua internet e tente de novo.");
+  }, 25_000);
   peer.on("error", err => {
     console.warn(err);
     if (err.type === "peer-unavailable") {
